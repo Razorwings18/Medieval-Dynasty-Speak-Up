@@ -2,7 +2,7 @@
 
 How to make MDSU work with ReShade:
 
-WARNING: If you enable this, the key that you set in STEP 2 will be sent every time you press "e" or a number while MSDU is running.
+WARNING: If you enable this, the key that you set in STEP 2 will be sent every time you press "e" or a number while MDSU is running.
 
 First, we'll set up ReShade:
 1. Open the Reshade overlay and go to Settings. Scroll down to the "Screenshots" section.
@@ -19,4 +19,4 @@ You can now close the ReShade overlay.
 9. Change use_reshade to "True"
 10. Change screenshot_key to the string that represents the key you chose in STEP 2. See the included "key_reference.txt" to find the string.
 
-That's it. Now, in the game, use the NUMBER KEYS to select dialogue options. MSDU won't work if you click the options with your mouse.
+That's it. Now, in the game, use the NUMBER KEYS to select dialogue options. MDSU won't work if you click the options with your mouse.
