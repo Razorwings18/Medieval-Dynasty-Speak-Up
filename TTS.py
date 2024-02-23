@@ -10,17 +10,20 @@ import pygame
 import edge_tts
 from edge_tts import VoicesManager
 from typing import Literal
+from file_ops import *
 
 OUTPUT_FILE = "output.mp3"
 
 
 class TTS:
-    def __init__(self, language="en"):
-        self.language = language
+    def __init__(self):
         self.background_tasks = set()
         self.loop = asyncio.get_event_loop_policy().get_event_loop()
         self.t1 = None
         self.last_selected_voice = None
+
+        self.voice_params = load_from_json("voice_config.json")
+        self.language = self.voice_params["locales"][0][:2]
 
     def get_selected_voice(self):
         while self.last_selected_voice is None:
@@ -63,22 +66,52 @@ class TTS:
                 pygame.mixer.quit()
                 self.last_selected_voice = None
 
-    async def amain(self, output_text: str, gender: Literal["Male", "Female"] = None, preferred_voice: str = None) -> None:
+    async def amain(self, output_text: str, gender: Literal["Male", "Female"] = None, preferred_voice = None) -> None:
         """Main function"""
         voices = await VoicesManager.create()
         if preferred_voice is None:
             voice = voices.find(Gender=gender, Language=self.language)
             # Also supports Locales
             # voice = voices.find(Gender="Female", Locale="es-AR")
+            #print("Voices: {}".format(voice))
+            voice_params = self.voice_params
 
-            selected_voice = random.choice(voice)["Name"]
-            print("Selected voice: " + selected_voice)
+            random_voice = None
+            while True: # Imagine if this ended up being an infinite loop. Gasp! Well, such a shame I don't feel like doing all the work to handle that unlikely event.
+                random_voice = random.choice(voice)
+                if (len(self.voice_params["locales"][0]) > 2):
+                    # There are specific locales selected, so filter out any that don't match
+                    if (random_voice["Locale"] in voice_params["locales"]):
+                        if (random_voice["ShortName"] not in voice_params["exclude_voice"]):
+                            break
+                else:
+                    # Only a language was selected without specifying locale, any locale will do
+                    if (random_voice["ShortName"] not in voice_params["exclude_voice"]):
+                            break
+            #print("Locale: {}".format(random_voice["Locale"]))
+
+            rand_rate = random.randint(voice_params["min_rate"], voice_params["max_rate"])
+            rand_pitch = random.randint(voice_params["min_pitch"], voice_params["max_pitch"])
+            selected_voice = [random_voice["Name"], rand_rate, rand_pitch]
+            print("Selected voice: " + str(selected_voice) + "\nShort name: " + random_voice["ShortName"])
         else:
             selected_voice = preferred_voice
             # "Microsoft Server Speech Text to Speech Voice (es-VE, SebastianNeural)"
         self.last_selected_voice = selected_voice # Pass this so that we can get the selected_voice from the outside
-        communicate = edge_tts.Communicate(output_text, selected_voice)
-        await communicate.save(OUTPUT_FILE)
+        
+        rate = "+{}%".format(selected_voice[1]) if selected_voice[1] >= 0 else "{}%".format(selected_voice[1])
+        volume = "+{}%".format(self.voice_params["volume"]) if self.voice_params["volume"] >= 0 else "{}%".format(self.voice_params["volume"])
+        pitch = "+{}Hz".format(selected_voice[2]) if selected_voice[2] >= 0 else "{}Hz".format(selected_voice[2])
+        
+        communicate = edge_tts.Communicate(output_text, selected_voice[0], rate=rate, volume=volume, pitch=pitch)
+        try:
+            await communicate.save(OUTPUT_FILE)
+        except:
+            time.sleep(0.5)
+            try:
+                await communicate.save(OUTPUT_FILE)
+            except:
+                pass
 
         # Play the generated audio file
         pygame.mixer.init()

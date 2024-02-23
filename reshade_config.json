@@ -1,4 +1,4 @@
 {
-    "use_reshade": "True",
+    "use_reshade": true,
 	"screenshot_key": "scroll_lock"
 }

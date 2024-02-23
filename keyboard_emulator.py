@@ -3,7 +3,9 @@ from vk_map import VK_MAP
 import keyboard, threading
 
 class KeyboardEmulator:
-    def __init__(self, reshade_key:str):
+    def __init__(self, parent, reshade_key:str):
+        self.parent = parent
+        
         self.reshade_key = reshade_key
         
         self.polling_thread = threading.Thread(target=self.poll_keyboard, daemon=True)
@@ -16,18 +18,15 @@ class KeyboardEmulator:
 
     def poll_keyboard(self):
         while True:
-            # Check for key events
-            if keyboard.is_pressed('e'):
-                print("You pressed 'e'")
-                time.sleep(2)
-                self.keystroke(self.reshade_key, None, 0.1)
-
-            for i in range(10):
-                if keyboard.is_pressed(str(i)):
-                    print(f"You pressed the number {i}")
-                    time.sleep(2)
-                    self.keystroke(self.reshade_key, None, 0.1)
-
+            # Check for a keypress of e or ESC
+            if keyboard.is_pressed('e') or keyboard.is_pressed('esc'):
+                print("You pressed 'e' or 'esc'")
+                self.parent.analyze()
+            else:
+                for i in range(10):
+                    if keyboard.is_pressed(str(i)):
+                        print(f"You pressed the number {i}")
+                        self.parent.analyze()
             time.sleep(0.05)  # Adjust the sleep duration as needed
         
     def key_event(self, key, event):

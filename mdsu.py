@@ -2,209 +2,129 @@
 Medieval Dynasty Speak Up
 Author: Razorwings18
 """
-import asyncio
-import threading
+print("Loading dependencies...")
 import pyautogui, time
-import json
 import numpy as np
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image
 import pytesseract
 import string
-import Levenshtein
-from TTS import TTS
 from keyboard_emulator import KeyboardEmulator
-import os
+from utils import Util
+from file_ops import *
 
-textcolor_threshold = 190 # 190 works perfectly without reshade
-
-save_images = False
-
-tts_class = TTS(language="en")
-name_to_voice = {} # Key: name of character, Value: voice name
-
-def find_newest_original_file():
-    script_folder = os.path.dirname(os.path.realpath(__file__))
-    temp_storage_folder = os.path.join(script_folder, "temp_storage")
-
-    # Check if the folder exists
-    if not os.path.exists(temp_storage_folder):
-        return None  # or raise an exception, handle accordingly
-
-    # Get a list of all files in the folder
-    files = [f for f in os.listdir(temp_storage_folder) if os.path.isfile(os.path.join(temp_storage_folder, f))]
-
-    # Filter files containing the word "original"
-    original_files = [f for f in files if "original" in f.lower()]
-
-    # Check if any "original" files were found
-    if not original_files:
-        return None  # or handle accordingly
-
-    # Find the newest file based on modification time
-    newest_file = max(original_files, key=lambda f: os.path.getmtime(os.path.join(temp_storage_folder, f)))
-
-    return os.path.join(temp_storage_folder, newest_file)
-
-def write_to_json(dictionary, filename):
-    try:
-        with open(filename, 'w') as json_file:
-            json.dump(dictionary, json_file, indent=4)
-    except Exception as e:
-        print(f"Error writing JSON: {e}")
-
-def load_from_json(filename):
-    try:
-        with open(filename, 'r') as json_file:
-            data = json.load(json_file)
-    except FileNotFoundError:
-        # If the file doesn't exist, create an empty dictionary
-        data = {}
-        write_to_json(filename, data)
-    return data
-
-def load_strings_from_file(filename):
-    with open(filename, 'r') as file:
-        strings_list = file.read().splitlines()
-    return strings_list
-
-def play_speech(text, gender, character_name: str):
-    character_name.replace("e", "c") # e and c keep getting confused. For naming purposes, just consider any "e" to be a "c". Otherwise we'll get different voices for the same character.
-    
-    # Look for a character that has a similar enough name in name_to_voice, since OCR will sometimes get the name a bit wrong.
-    foundname = False
-    for name in name_to_voice.keys():
-        distance = levenshtein_distance(name, character_name)
-        if distance < 2:
-            foundname = True
-            character_name = name
-            break
-
-    if foundname:
-        voice = name_to_voice[character_name]
-        print("Using preset voice for character {}".format(character_name))
-    else:
-        voice = None
-    thread = threading.Thread(target=tts_class.say, args=(text, gender, voice))
-    thread.start()
-    if voice is None:
-        voice = tts_class.get_selected_voice()
-        # Add a new character to name_to_voice and assign it the selected voice
-        name_to_voice[character_name] = voice
-        print("\nNew voice for character {}: {}\n".format(character_name, voice))
+class MDSU:
+    def __init__(self):
+        self.util = Util()
+        self.save_images = False
         
-        # Save the new character-voice relation to a JSON file
-        write_to_json(name_to_voice, "voices.json")
+        # Initialize variables used in analysis
+        self.sscount = 0
+        self.last_screenshot_file = ""
+        self.screenshot = None
+        self.found_name_without_text = False
+        self.prev_text_roi2 = "" # Initialize variable to store the previous text_roi2
+        self.analysis_delay = 0.5 # Time it takes since the key was pressed to start the analysis. Used to wait for the dialogue text to slide up.
 
+        # Set the path to the Tesseract executable (modify this path based on your installation)
+        pytesseract.pytesseract.tesseract_cmd = r'D:\Program Files\Tesseract-OCR\tesseract.exe'
+        self.voice_params = load_from_json("voice_config.json")
+        self.ocr_language = self.voice_params["ocr_lang"]
 
-# Function to enhance contrast
-def enhance_contrast(image):
-    enhancer = ImageEnhance.Brightness(image)
-    debrightened_image = enhancer.enhance(0.02)  # You can adjust the enhancement factor (e.g., 2.0)
-    enhancer = ImageEnhance.Contrast(debrightened_image)
-    enhanced_image = enhancer.enhance(50.0)  # You can adjust the enhancement factor (e.g., 2.0)
-    return enhanced_image
+        # Load the reshade config
+        self.reshade_config = load_from_json("reshade_config.json")
+        print("\nReshade config. Use Reshade: " + str(self.reshade_config["use_reshade"]) + ". Screenshot key: " + str(self.reshade_config["screenshot_key"]))
+        self.use_reshade = self.reshade_config["use_reshade"]
+        
+        # Initialize the keyboard emulator. This will poll for key presses and call analyze() when required.
+        self.keyboard_emulator = KeyboardEmulator(self, self.reshade_config["screenshot_key"])
 
-# Function to remove low-intensity pixels
-def remove_low_intensity(image):
-    image_array = np.array(image)
-    mask = np.all(image_array[:, :, :3] >= textcolor_threshold, axis=-1)
-    thresholded_image = np.zeros_like(image_array)
-    thresholded_image[mask] = image_array[mask]
-    return Image.fromarray(thresholded_image)
+        # Load the list of strings that should be ignored
+        self.dont_say_these_strings = load_strings_from_file("dont_say.cfg")
+        print("\nIgnored strings: {}".format(self.dont_say_these_strings))
 
-# Function to apply anti-aliasing
-def apply_antialiasing(image):
-    return image.filter(ImageFilter.SMOOTH)
+        # Just loop until the user exits
+        try:
+            while True:
+                 time.sleep(0.3)
+        except KeyboardInterrupt:
+            print("\nClosing. This may take up to a minute...")
+            #thread.join() # Commented because YOLO. And daemons.
 
-# Function to resize image to twice its size
-def resize_image(image):
-    return image.resize((image.width * 2, image.height * 2), Image.BICUBIC)
+    def analyze(self):
+        self.found_name_without_text = False
 
-# Function to calculate Levenshtein distance
-def levenshtein_distance(str1, str2):
-    return Levenshtein.distance(str1, str2)
+        # Wait some time for the dialogue text to slide up
+        time.sleep(self.analysis_delay)
 
-# Set the path to the Tesseract executable (modify this path based on your installation)
-pytesseract.pytesseract.tesseract_cmd = r'D:\Program Files\Tesseract-OCR\tesseract.exe'
+        # Analyze the image
+        self.image_analysis()
+        if self.found_name_without_text:
+            # The analysis found a character's name but no dialogue. This might be because the dialogue is still sliding up, so we wait a little more
+            #   and rerun the analysis a second time.
+            time.sleep(self.analysis_delay * 2)
+            self.image_analysis()
+    
+    def image_analysis(self):
+        if self.use_reshade:
+            self.util.empty_screenshot_folder()
 
-# Initialize variables to store the previous text_roi2 and Levenshtein distance
-prev_text_roi2 = ""
-prev_distance = 0
-
-# Load the voice-character relationships from the JSON file
-name_to_voice = load_from_json("voices.json")
-
-# Load the reshade config
-reshade_config = load_from_json("reshade_config.json")
-print("Reshade config. Use Reshade: " + str(reshade_config["use_reshade"]) + ". Screenshot key: " + str(reshade_config["screenshot_key"]))
-use_reshade = reshade_config["use_reshade"]
-if use_reshade:
-    keyboard_emulator = KeyboardEmulator(reshade_config["screenshot_key"])
-
-# Load the list of strings that should be ignored
-dont_say_these_strings = load_strings_from_file("dont_say.cfg")
-print(dont_say_these_strings)
-
-sscount = 0
-last_screenshot_file = ""
-screenshot = None
-try:
-    while True:
-        if use_reshade:
-            # Get the latest screenshot without reshade
-            screenshot_file = find_newest_original_file()
+            # Take a screenshot with ReShade
+            self.keyboard_emulator.keystroke(self.keyboard_emulator.reshade_key, None, 0.1)
             
-            if screenshot_file is not None and screenshot_file != last_screenshot_file:
+            # Get the latest screenshot without reshade
+            screenshot_file = self.util.find_newest_original_file()
+            
+            if screenshot_file is not None and screenshot_file != self.last_screenshot_file:
                 # Open the PNG image file
-                screenshot = Image.open(screenshot_file)
-                last_screenshot_file = screenshot_file
+                try:
+                    self.screenshot = Image.open(screenshot_file)
+                    self.util.empty_screenshot_folder()
+                    self.last_screenshot_file = screenshot_file
+                except:
+                    pass
         else:
-            # Get the screen resolution
-            screen_width, screen_height = pyautogui.size()
-
             # Capture the screen
-            screenshot = pyautogui.screenshot()
+            self.screenshot = pyautogui.screenshot()
 
-        if screenshot is not None:
+        if self.screenshot is not None:
             # Convert the screenshot to a NumPy array for further processing
-            screenshot_array = np.array(screenshot)
+            screenshot_array = np.array(self.screenshot)
 
             # Get the dimensions of the screenshot array
             height, width, _ = screenshot_array.shape
 
             # Define the coordinates of the ROIs as a percentage of the original size
+            # ROI1 contains the name, age, mood and affection
             roi1_left = int(0.1 * width)
             roi1_top = int(0.75 * height)
             roi1_right = int(0.9 * width)
             roi1_bottom = int(0.81 * height)
 
+            # ROI2 contains the dialogue
             roi2_left = int(0.1 * width)
             roi2_top = int(0.82 * height)
             roi2_right = int(0.9 * width)
-            roi2_bottom = int(0.96 * height)  # Note: 1 - 0.04 (4% from the bottom)
+            roi2_bottom = int(0.96 * height)
 
             # Extract the ROIs using NumPy slicing
             roi1 = screenshot_array[roi1_top:roi1_bottom, roi1_left:roi1_right, :]
             roi2 = screenshot_array[roi2_top:roi2_bottom, roi2_left:roi2_right, :]
 
             # Resize roi1 and roi2 to twice their size
-            resized_roi1 = resize_image(Image.fromarray(roi1))
-            resized_roi2 = resize_image(Image.fromarray(roi2))
+            resized_roi1 = self.util.resize_image(Image.fromarray(roi1))
+            resized_roi2 = self.util.resize_image(Image.fromarray(roi2))
 
             # Enhance contrast for roi1 and roi2
-            enhanced_roi1 = remove_low_intensity(resized_roi1)
-            enhanced_roi2 = remove_low_intensity(resized_roi2)
+            enhanced_roi1 = self.util.remove_low_intensity(resized_roi1)
+            enhanced_roi2 = self.util.remove_low_intensity(resized_roi2)
 
             # Apply anti-aliasing to enhanced_roi1 and enhanced_roi2
-            enhanced_roi1 = apply_antialiasing(enhanced_roi1)
-            enhanced_roi2 = apply_antialiasing(enhanced_roi2)
-
-            #enhanced_roi1 = enhance_contrast(enhanced_roi1)
-            #enhanced_roi2 = enhance_contrast(enhanced_roi2)
+            enhanced_roi1 = self.util.apply_antialiasing(enhanced_roi1)
+            enhanced_roi2 = self.util.apply_antialiasing(enhanced_roi2)
 
             # Perform OCR on enhanced roi1 and roi2
-            text_roi1 = pytesseract.image_to_string(np.array(enhanced_roi1), config='--psm 6')  # Adjust config based on your needs
-            text_roi2 = pytesseract.image_to_string(np.array(enhanced_roi2), config='--psm 6')  # Adjust config based on your needs
+            text_roi1 = pytesseract.image_to_string(np.array(enhanced_roi1), lang=self.ocr_language, config='--psm 6')  # Adjust config based on your needs
+            text_roi2 = pytesseract.image_to_string(np.array(enhanced_roi2), lang=self.ocr_language, config='--psm 6')  # Adjust config based on your needs
 
             # Extract the first word longer than 3 letters, which should be the name
             text_roi1 = text_roi1.replace('|', 'I')
@@ -224,34 +144,36 @@ try:
             text_roi2 = text_roi2.replace('[', 'I ')
             text_roi2 = text_roi2.replace('[', 'I ')
             text_roi2 = text_roi2.replace('\\', ' ')
+            text_roi2 = text_roi2.replace('&', 'E')
+            text_roi2 = text_roi2.replace('$', 'E')
+            text_roi2 = text_roi2.replace('>', '').replace('<', '')
             
-            # Make sure text_roi2 isn't a string in dont_say_these_strings
-            for text in dont_say_these_strings:
-                distance = levenshtein_distance(text_roi2, text)
+            # A dialogue box is open but no dialogue was detected. This might be because the dialogue text is still sliding up when we do this analysis.
+            # Set self.found_name_without_text to True so that the analysis is attempted once more after waiting a little more.
+            if len(text_roi2) == 0 and len(character_name) > 0:
+                self.found_name_without_text = True
+            
+            # Make sure text_roi2 isn't a string in self.dont_say_these_strings
+            for text in self.dont_say_these_strings:
+                distance = self.util.levenshtein_distance(text_roi2, text)
                 if (distance < 3):
+                    self.util.tts_class.stop_playback()
                     text_roi2 = ""
                     break
 
-            # Check if the text is more than 75% different
             if len(text_roi2)>0 and len(character_name)>0:
                 # Calculate Levenshtein distance
-                distance = levenshtein_distance(text_roi2, prev_text_roi2)
+                distance = self.util.levenshtein_distance(text_roi2, self.prev_text_roi2)
 
+                # Check if the text difference (Levenshtein distance) is more than 10
                 if (distance > 10):
-                    # Print or store the detected text
-                    if "Age" in text_roi1 or "Mood" in text_roi1:
-                        tts_class.stop_playback()
-                        if "Affection" in text_roi1 or character_name[-1] == "a":
-                            #tts_class.say(text_roi2, "Female")
-                            # Only females have affection
-                            play_speech(text_roi2, "Female", character_name)
-                            #thread = threading.Thread(target=tts_class.say, args=(text_roi2, "Female"))
-                            #thread.start()
+                    if "Age" in text_roi1 or "Mood" in text_roi1 or "dad:" in text_roi1 or "Sstado" in text_roi1:
+                        self.util.tts_class.stop_playback()
+                        if "Affection" in text_roi1 or "Afecto" in text_roi1 or character_name[-1] == "a":
+                            # Only females have affection. Psychologists might dispute this.
+                            self.util.play_speech(text_roi2, "Female", character_name)
                         else:
-                            #tts_class.say(text_roi2, "Male")
-                            play_speech(text_roi2, "Male", character_name)
-                            #thread = threading.Thread(target=tts_class.say, args=(text_roi2, "Male"))
-                            #thread.start()
+                            self.util.play_speech(text_roi2, "Male", character_name)
 
                         print("\nDistance: {}\n\n{}: {}\n\n".format(distance, character_name, text_roi2))
                     else:
@@ -263,26 +185,24 @@ try:
                     print("---------------------------------")
 
                 # Update previous text_roi2 and distance
-                prev_text_roi2 = text_roi2
-                prev_distance = distance
-
-            # Create PIL images from the extracted ROIs
-            #roi1_image = Image.fromarray(roi1)
-            #roi2_image = Image.fromarray(roi2)
-            roi1_image = enhanced_roi1
-            roi2_image = enhanced_roi2
-
-            # For example, save the screenshot to a file
-            sscount += 1
+                self.prev_text_roi2 = text_roi2
 
             # Save the ROIs to files (optional)
-            if save_images:
-                screenshot.save('{}.png'.format(sscount))
-                roi1_image.save('{}-roi1.png'.format(sscount))
-                roi2_image.save('{}-roi2.png'.format(sscount))
+            if self.save_images:
+                # Create PIL images from the extracted ROIs
+                roi1_image = enhanced_roi1
+                roi2_image = enhanced_roi2
 
-        # Wait for 5 seconds
-        time.sleep(0.3)
-except KeyboardInterrupt:
-    print("Closing. This may take up to a minute...")
-    #thread.join()
+                # Add the count for the filename
+                self.sscount += 1
+
+                # Save the screenshots
+                self.screenshot.save('{}.png'.format(self.sscount))
+                roi1_image.save('{}-roi1.png'.format(self.sscount))
+                roi2_image.save('{}-roi2.png'.format(self.sscount))
+
+            self.screenshot.close()
+            self.screenshot = None
+
+if __name__ == "__main__":
+    mdsu = MDSU()

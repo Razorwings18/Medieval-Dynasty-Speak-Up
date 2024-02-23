@@ -2,3 +2,4 @@
 /voices.json
 /__pycache__
 /output.mp3
+temp_storage/*.png

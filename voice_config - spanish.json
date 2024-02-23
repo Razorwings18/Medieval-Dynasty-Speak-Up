@@ -1,0 +1,10 @@
+{
+	"min_rate": 10,
+	"max_rate": 30,
+	"volume": -50,
+	"min_pitch": -15,
+	"max_pitch": 15,
+	"locales": ["es"],
+	"ocr_lang": "spa",
+	"exclude_voice": []
+}
