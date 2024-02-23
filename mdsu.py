@@ -12,11 +12,38 @@ import pytesseract
 import string
 import Levenshtein
 from TTS import TTS
+from keyboard_emulator import KeyboardEmulator
+import os
+
+textcolor_threshold = 190 # 190 works perfectly without reshade
 
 save_images = False
 
 tts_class = TTS(language="en")
 name_to_voice = {} # Key: name of character, Value: voice name
+
+def find_newest_original_file():
+    script_folder = os.path.dirname(os.path.realpath(__file__))
+    temp_storage_folder = os.path.join(script_folder, "temp_storage")
+
+    # Check if the folder exists
+    if not os.path.exists(temp_storage_folder):
+        return None  # or raise an exception, handle accordingly
+
+    # Get a list of all files in the folder
+    files = [f for f in os.listdir(temp_storage_folder) if os.path.isfile(os.path.join(temp_storage_folder, f))]
+
+    # Filter files containing the word "original"
+    original_files = [f for f in files if "original" in f.lower()]
+
+    # Check if any "original" files were found
+    if not original_files:
+        return None  # or handle accordingly
+
+    # Find the newest file based on modification time
+    newest_file = max(original_files, key=lambda f: os.path.getmtime(os.path.join(temp_storage_folder, f)))
+
+    return os.path.join(temp_storage_folder, newest_file)
 
 def write_to_json(dictionary, filename):
     try:
@@ -78,9 +105,9 @@ def enhance_contrast(image):
     return enhanced_image
 
 # Function to remove low-intensity pixels
-def remove_low_intensity(image, threshold=190):
+def remove_low_intensity(image):
     image_array = np.array(image)
-    mask = np.all(image_array[:, :, :3] >= threshold, axis=-1)
+    mask = np.all(image_array[:, :, :3] >= textcolor_threshold, axis=-1)
     thresholded_image = np.zeros_like(image_array)
     thresholded_image[mask] = image_array[mask]
     return Image.fromarray(thresholded_image)
@@ -104,133 +131,155 @@ pytesseract.pytesseract.tesseract_cmd = r'D:\Program Files\Tesseract-OCR\tessera
 prev_text_roi2 = ""
 prev_distance = 0
 
+# Load the voice-character relationships from the JSON file
 name_to_voice = load_from_json("voices.json")
+
+# Load the reshade config
+reshade_config = load_from_json("reshade_config.json")
+print("Reshade config. Use Reshade: " + str(reshade_config["use_reshade"]) + ". Screenshot key: " + str(reshade_config["screenshot_key"]))
+use_reshade = reshade_config["use_reshade"]
+if use_reshade:
+    keyboard_emulator = KeyboardEmulator(reshade_config["screenshot_key"])
+
+# Load the list of strings that should be ignored
 dont_say_these_strings = load_strings_from_file("dont_say.cfg")
 print(dont_say_these_strings)
 
 sscount = 0
+last_screenshot_file = ""
+screenshot = None
 try:
     while True:
-        # Get the screen resolution
-        screen_width, screen_height = pyautogui.size()
+        if use_reshade:
+            # Get the latest screenshot without reshade
+            screenshot_file = find_newest_original_file()
+            
+            if screenshot_file is not None and screenshot_file != last_screenshot_file:
+                # Open the PNG image file
+                screenshot = Image.open(screenshot_file)
+                last_screenshot_file = screenshot_file
+        else:
+            # Get the screen resolution
+            screen_width, screen_height = pyautogui.size()
 
-        # Capture the screen
-        screenshot = pyautogui.screenshot()
+            # Capture the screen
+            screenshot = pyautogui.screenshot()
 
-        # Convert the screenshot to a NumPy array for further processing
-        screenshot_array = np.array(screenshot)
+        if screenshot is not None:
+            # Convert the screenshot to a NumPy array for further processing
+            screenshot_array = np.array(screenshot)
 
-        # Get the dimensions of the screenshot array
-        height, width, _ = screenshot_array.shape
+            # Get the dimensions of the screenshot array
+            height, width, _ = screenshot_array.shape
 
-        # Define the coordinates of the ROIs as a percentage of the original size
-        roi1_left = int(0.1 * width)
-        roi1_top = int(0.75 * height)
-        roi1_right = int(0.9 * width)
-        roi1_bottom = int(0.81 * height)
+            # Define the coordinates of the ROIs as a percentage of the original size
+            roi1_left = int(0.1 * width)
+            roi1_top = int(0.75 * height)
+            roi1_right = int(0.9 * width)
+            roi1_bottom = int(0.81 * height)
 
-        roi2_left = int(0.1 * width)
-        roi2_top = int(0.82 * height)
-        roi2_right = int(0.9 * width)
-        roi2_bottom = int(0.96 * height)  # Note: 1 - 0.04 (4% from the bottom)
+            roi2_left = int(0.1 * width)
+            roi2_top = int(0.82 * height)
+            roi2_right = int(0.9 * width)
+            roi2_bottom = int(0.96 * height)  # Note: 1 - 0.04 (4% from the bottom)
 
-        # Extract the ROIs using NumPy slicing
-        roi1 = screenshot_array[roi1_top:roi1_bottom, roi1_left:roi1_right, :]
-        roi2 = screenshot_array[roi2_top:roi2_bottom, roi2_left:roi2_right, :]
+            # Extract the ROIs using NumPy slicing
+            roi1 = screenshot_array[roi1_top:roi1_bottom, roi1_left:roi1_right, :]
+            roi2 = screenshot_array[roi2_top:roi2_bottom, roi2_left:roi2_right, :]
 
-        # Resize roi1 and roi2 to twice their size
-        resized_roi1 = resize_image(Image.fromarray(roi1))
-        resized_roi2 = resize_image(Image.fromarray(roi2))
+            # Resize roi1 and roi2 to twice their size
+            resized_roi1 = resize_image(Image.fromarray(roi1))
+            resized_roi2 = resize_image(Image.fromarray(roi2))
 
-        # Enhance contrast for roi1 and roi2
-        enhanced_roi1 = remove_low_intensity(resized_roi1)
-        enhanced_roi2 = remove_low_intensity(resized_roi2)
+            # Enhance contrast for roi1 and roi2
+            enhanced_roi1 = remove_low_intensity(resized_roi1)
+            enhanced_roi2 = remove_low_intensity(resized_roi2)
 
-        # Apply anti-aliasing to enhanced_roi1 and enhanced_roi2
-        enhanced_roi1 = apply_antialiasing(enhanced_roi1)
-        enhanced_roi2 = apply_antialiasing(enhanced_roi2)
+            # Apply anti-aliasing to enhanced_roi1 and enhanced_roi2
+            enhanced_roi1 = apply_antialiasing(enhanced_roi1)
+            enhanced_roi2 = apply_antialiasing(enhanced_roi2)
 
-        #enhanced_roi1 = enhance_contrast(enhanced_roi1)
-        #enhanced_roi2 = enhance_contrast(enhanced_roi2)
+            #enhanced_roi1 = enhance_contrast(enhanced_roi1)
+            #enhanced_roi2 = enhance_contrast(enhanced_roi2)
 
-        # Perform OCR on enhanced roi1 and roi2
-        text_roi1 = pytesseract.image_to_string(np.array(enhanced_roi1), config='--psm 6')  # Adjust config based on your needs
-        text_roi2 = pytesseract.image_to_string(np.array(enhanced_roi2), config='--psm 6')  # Adjust config based on your needs
+            # Perform OCR on enhanced roi1 and roi2
+            text_roi1 = pytesseract.image_to_string(np.array(enhanced_roi1), config='--psm 6')  # Adjust config based on your needs
+            text_roi2 = pytesseract.image_to_string(np.array(enhanced_roi2), config='--psm 6')  # Adjust config based on your needs
 
-        # Extract the first word longer than 3 letters, which should be the name
-        text_roi1 = text_roi1.replace('|', 'I')
-        words_roi1 = text_roi1.split()
-        character_name = next((word for word in words_roi1 if len(word) > 3), "")
+            # Extract the first word longer than 3 letters, which should be the name
+            text_roi1 = text_roi1.replace('|', 'I')
+            words_roi1 = text_roi1.split()
+            character_name = next((word for word in words_roi1 if len(word) > 3), "")
 
-        # Remove carriage returns and newlines, replace with spaces
-        text_roi2 = text_roi2.replace('\n', ' ').replace('\r', ' ')
+            # Remove carriage returns and newlines, replace with spaces
+            text_roi2 = text_roi2.replace('\n', ' ').replace('\r', ' ')
 
-        # Remove double spacing
-        text_roi2 = ' '.join(text_roi2.split())
+            # Remove double spacing
+            text_roi2 = ' '.join(text_roi2.split())
 
-        # Remove any character that is not a letter or punctuation
-        text_roi2 = ''.join(char if char.isalpha() or char in string.punctuation or char == "'" or char == "’" else ' ' for char in text_roi2)
+            # Remove any character that is not a letter or punctuation
+            text_roi2 = ''.join(char if char.isalpha() or char in string.punctuation or char == "'" or char == "’" else ' ' for char in text_roi2)
 
-        text_roi2 = text_roi2.replace('|', 'I')
-        text_roi2 = text_roi2.replace('[', 'I ')
-        text_roi2 = text_roi2.replace('[', 'I ')
-        text_roi2 = text_roi2.replace('\\', ' ')
-        
-        # Make sure text_roi2 isn't a string in dont_say_these_strings
-        for text in dont_say_these_strings:
-            distance = levenshtein_distance(text_roi2, text)
-            if (distance < 3):
-                text_roi2 = ""
-                break
+            text_roi2 = text_roi2.replace('|', 'I')
+            text_roi2 = text_roi2.replace('[', 'I ')
+            text_roi2 = text_roi2.replace('[', 'I ')
+            text_roi2 = text_roi2.replace('\\', ' ')
+            
+            # Make sure text_roi2 isn't a string in dont_say_these_strings
+            for text in dont_say_these_strings:
+                distance = levenshtein_distance(text_roi2, text)
+                if (distance < 3):
+                    text_roi2 = ""
+                    break
 
-        # Check if the text is more than 75% different
-        if len(text_roi2)>0 and len(character_name)>0:
-            # Calculate Levenshtein distance
-            distance = levenshtein_distance(text_roi2, prev_text_roi2)
+            # Check if the text is more than 75% different
+            if len(text_roi2)>0 and len(character_name)>0:
+                # Calculate Levenshtein distance
+                distance = levenshtein_distance(text_roi2, prev_text_roi2)
 
-            if (distance > 10):
-                # Print or store the detected text
-                if "Age" in text_roi1 or "Mood" in text_roi1:
-                    tts_class.stop_playback()
-                    if "Affection" in text_roi1 or character_name[-1] == "a":
-                        #tts_class.say(text_roi2, "Female")
-                        # Only females have affection
-                        play_speech(text_roi2, "Female", character_name)
-                        #thread = threading.Thread(target=tts_class.say, args=(text_roi2, "Female"))
-                        #thread.start()
+                if (distance > 10):
+                    # Print or store the detected text
+                    if "Age" in text_roi1 or "Mood" in text_roi1:
+                        tts_class.stop_playback()
+                        if "Affection" in text_roi1 or character_name[-1] == "a":
+                            #tts_class.say(text_roi2, "Female")
+                            # Only females have affection
+                            play_speech(text_roi2, "Female", character_name)
+                            #thread = threading.Thread(target=tts_class.say, args=(text_roi2, "Female"))
+                            #thread.start()
+                        else:
+                            #tts_class.say(text_roi2, "Male")
+                            play_speech(text_roi2, "Male", character_name)
+                            #thread = threading.Thread(target=tts_class.say, args=(text_roi2, "Male"))
+                            #thread.start()
+
+                        print("\nDistance: {}\n\n{}: {}\n\n".format(distance, character_name, text_roi2))
                     else:
-                        #tts_class.say(text_roi2, "Male")
-                        play_speech(text_roi2, "Male", character_name)
-                        #thread = threading.Thread(target=tts_class.say, args=(text_roi2, "Male"))
-                        #thread.start()
-
-                    print("\nDistance: {}\n\n{}: {}\n\n".format(distance, character_name, text_roi2))
+                        print("\n\nINVALID!!!!!!: {}\n\n", text_roi1)
                 else:
-                    print("\n\nINVALID!!!!!!: {}\n\n", text_roi1)
-            else:
-                print("#################################")
-                print("Text is the same. Omitting. DISTANCE: " + str(distance))
-                print("{}: {}".format(character_name, text_roi2))
-                print("---------------------------------")
+                    print("#################################")
+                    print("Text is the same. Omitting. DISTANCE: " + str(distance))
+                    print("{}: {}".format(character_name, text_roi2))
+                    print("---------------------------------")
 
-            # Update previous text_roi2 and distance
-            prev_text_roi2 = text_roi2
-            prev_distance = distance
+                # Update previous text_roi2 and distance
+                prev_text_roi2 = text_roi2
+                prev_distance = distance
 
-        # Create PIL images from the extracted ROIs
-        #roi1_image = Image.fromarray(roi1)
-        #roi2_image = Image.fromarray(roi2)
-        roi1_image = enhanced_roi1
-        roi2_image = enhanced_roi2
+            # Create PIL images from the extracted ROIs
+            #roi1_image = Image.fromarray(roi1)
+            #roi2_image = Image.fromarray(roi2)
+            roi1_image = enhanced_roi1
+            roi2_image = enhanced_roi2
 
-        # For example, save the screenshot to a file
-        sscount += 1
+            # For example, save the screenshot to a file
+            sscount += 1
 
-        # Save the ROIs to files (optional)
-        if save_images:
-            screenshot.save('{}.png'.format(sscount))
-            roi1_image.save('{}-roi1.png'.format(sscount))
-            roi2_image.save('{}-roi2.png'.format(sscount))
+            # Save the ROIs to files (optional)
+            if save_images:
+                screenshot.save('{}.png'.format(sscount))
+                roi1_image.save('{}-roi1.png'.format(sscount))
+                roi2_image.save('{}-roi2.png'.format(sscount))
 
         # Wait for 5 seconds
         time.sleep(0.3)
