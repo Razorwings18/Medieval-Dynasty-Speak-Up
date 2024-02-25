@@ -16,7 +16,7 @@ First, we'll set up ReShade:
 You can now close the ReShade overlay.
 
 8. In MDSU's folder, find the file "reshade_config.json" and open it (preferrably with Notepad or Notepad++)
-9. Change use_reshade to "True"
-10. Change screenshot_key to the string that represents the key you chose in STEP 2. See the included "key_reference.txt" to find the string.
+9. Change use_reshade to "true" (IMPORTANT: MUST BE ALL LOWERCASE. E.G., do NOT enter "True" or "TRUE")
+10. Change screenshot_key to the string that represents the key that you chose in STEP 2. See the included "key_reference.txt" to find the appropriate string.
 
-That's it. Now, in the game, use the NUMBER KEYS to select dialogue options. MDSU won't work if you click the options with your mouse.
+That's it. Now, in the game, use the NUMBER KEYS to select dialogue options. MDSU *won't work* if you click the options with your mouse.

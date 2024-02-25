@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 import pytesseract
 import string
+import os
 from keyboard_emulator import KeyboardEmulator
 from utils import Util
 from file_ops import *
@@ -15,7 +16,8 @@ from file_ops import *
 class MDSU:
     def __init__(self):
         self.util = Util()
-        self.save_images = False
+        self.save_images = True # Save detected images into self.save_folder for debug purposes
+        self.save_folder = "debug_screenshots"
         
         # Initialize variables used in analysis
         self.sscount = 0
@@ -202,9 +204,9 @@ class MDSU:
                 self.sscount += 1
 
                 # Save the screenshots
-                self.screenshot.save('{}.png'.format(self.sscount))
-                roi1_image.save('{}-roi1.png'.format(self.sscount))
-                roi2_image.save('{}-roi2.png'.format(self.sscount))
+                self.screenshot.save(os.path.join(self.save_folder, '{}.png'.format(self.sscount)))
+                roi1_image.save(os.path.join(self.save_folder, '{}-roi1.png'.format(self.sscount)))
+                roi2_image.save(os.path.join(self.save_folder, '{}-roi2.png'.format(self.sscount)))
 
             self.screenshot.close()
             self.screenshot = None
