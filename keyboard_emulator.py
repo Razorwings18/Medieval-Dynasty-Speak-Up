@@ -17,16 +17,28 @@ class KeyboardEmulator:
     VK_MAP = VK_MAP
 
     def poll_keyboard(self):
+        press_detected_last_cycle = False
+        
         while True:
             # Check for a keypress of e or ESC
             if keyboard.is_pressed('e') or keyboard.is_pressed('esc'):
+            #if keyboard.is_pressed('esc'):
                 print("You pressed 'e' or 'esc'")
-                self.parent.analyze()
+                if not press_detected_last_cycle:
+                    self.parent.analyze()
+                press_detected_last_cycle = True
             else:
+                press_detected = False
                 for i in range(10):
                     if keyboard.is_pressed(str(i)):
+                        press_detected = True
                         print(f"You pressed the number {i}")
-                        self.parent.analyze()
+                        if not press_detected_last_cycle:
+                            self.parent.analyze()
+                            press_detected_last_cycle = True
+                        break
+                if not press_detected:
+                    press_detected_last_cycle = False
             time.sleep(0.05)  # Adjust the sleep duration as needed
         
     def key_event(self, key, event):

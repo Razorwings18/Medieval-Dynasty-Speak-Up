@@ -52,15 +52,23 @@ class Util:
 
     def play_speech(self, text, gender, character_name: str):
         character_name.replace("e", "c") # e and c keep getting confused. For naming purposes, just consider any "e" to be a "c". Otherwise we'll get different voices for the same character.
-        
-        # Look for a character that has a similar enough name in self.name_to_voice, since OCR will sometimes get the name a bit wrong.
+
         foundname = False
-        for name in self.name_to_voice.keys():
-            distance = self.levenshtein_distance(name, character_name)
-            if distance < 2:
-                foundname = True
-                character_name = name
-                break
+        # Look for the character's name in self.name_to_voice
+        if character_name in self.name_to_voice.keys():
+            foundname = True
+        
+        if not foundname:
+            # If we didn't find the character's name, look for a character that has a similar enough name in self.name_to_voice, 
+            #   since OCR will sometimes get the name a bit wrong.
+            for name in self.name_to_voice.keys():
+                distance = self.levenshtein_distance(name, character_name)
+                if distance < 2:
+                    if (character_name[-1] == "a" and name[-1] == "a") or (character_name[-1] != "a" and name[-1] != "a"):
+                        # The character's name is similar enough AND it's the same sex.
+                        foundname = True
+                        character_name = name
+                        break
 
         if foundname:
             voice = self.name_to_voice[character_name]

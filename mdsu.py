@@ -66,19 +66,24 @@ class MDSU:
     
     def image_analysis(self):
         if self.use_reshade:
+            print("Emptying temp folder...")
             self.util.empty_screenshot_folder()
+            time.sleep(0.1)
 
             # Take a screenshot with ReShade
+            print("Taking screenshot...")
             self.keyboard_emulator.keystroke(self.keyboard_emulator.reshade_key, None, 0.1)
-            
+            time.sleep(0.1)
+
             # Get the latest screenshot without reshade
             screenshot_file = self.util.find_newest_original_file()
+            print("Screenshot file: {}\nLast screenshot file: {}".format(screenshot_file, self.last_screenshot_file))
             
             if screenshot_file is not None and screenshot_file != self.last_screenshot_file:
+                print("Found new screenshot. Selected for OCR.")
                 # Open the PNG image file
                 try:
                     self.screenshot = Image.open(screenshot_file)
-                    self.util.empty_screenshot_folder()
                     self.last_screenshot_file = screenshot_file
                 except:
                     pass
@@ -142,7 +147,7 @@ class MDSU:
 
             text_roi2 = text_roi2.replace('|', 'I')
             text_roi2 = text_roi2.replace('[', 'I ')
-            text_roi2 = text_roi2.replace('[', 'I ')
+            text_roi2 = text_roi2.replace(']', 'I ')
             text_roi2 = text_roi2.replace('\\', ' ')
             text_roi2 = text_roi2.replace('&', 'E')
             text_roi2 = text_roi2.replace('$', 'E')
@@ -167,7 +172,7 @@ class MDSU:
 
                 # Check if the text difference (Levenshtein distance) is more than 10
                 if (distance > 10):
-                    if "Age" in text_roi1 or "Mood" in text_roi1 or "dad:" in text_roi1 or "Sstado" in text_roi1:
+                    if "Age" in text_roi1 or "Ade:" in text_roi1 or "Mood" in text_roi1 or "dad:" in text_roi1 or "Sstado" in text_roi1:
                         self.util.tts_class.stop_playback()
                         if "Affection" in text_roi1 or "Afecto" in text_roi1 or character_name[-1] == "a":
                             # Only females have affection. Psychologists might dispute this.
