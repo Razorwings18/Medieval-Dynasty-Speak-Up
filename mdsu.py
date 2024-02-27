@@ -44,11 +44,18 @@ class MDSU:
         self.dont_say_these_strings = load_strings_from_file("dont_say.cfg")
         print("\nIgnored strings: {}".format(self.dont_say_these_strings))
 
+        # Delete any leftover screenshots in the temp folder
+        print("Emptying temp folder...")
+        self.util.empty_screenshot_folder()
+        
         # Just loop until the user exits
         try:
             while True:
                  time.sleep(0.3)
         except KeyboardInterrupt:
+            print("Emptying temp folder...")
+            self.util.empty_screenshot_folder()
+            
             print("\nClosing. This may take up to a minute...")
             #thread.join() # Commented because YOLO. And daemons.
 
@@ -68,10 +75,6 @@ class MDSU:
     
     def image_analysis(self):
         if self.use_reshade:
-            print("Emptying temp folder...")
-            self.util.empty_screenshot_folder()
-            time.sleep(0.1)
-
             # Take a screenshot with ReShade
             print("Taking screenshot...")
             self.keyboard_emulator.keystroke(self.keyboard_emulator.reshade_key, None, 0.1)
@@ -182,6 +185,20 @@ class MDSU:
                         else:
                             self.util.play_speech(text_roi2, "Male", character_name)
 
+                        # Save the ROIs to files (optional)
+                        if self.save_images:
+                            # Create PIL images from the extracted ROIs
+                            roi1_image = enhanced_roi1
+                            roi2_image = enhanced_roi2
+
+                            # Add the count for the filename
+                            self.sscount += 1
+
+                            # Save the screenshots
+                            self.screenshot.save(os.path.join(self.save_folder, '{}.png'.format(self.sscount)))
+                            roi1_image.save(os.path.join(self.save_folder, '{}-roi1.png'.format(self.sscount)))
+                            roi2_image.save(os.path.join(self.save_folder, '{}-roi2.png'.format(self.sscount)))
+                        
                         print("\nDistance: {}\n\n{}: {}\n\n".format(distance, character_name, text_roi2))
                     else:
                         print("\n\nINVALID!!!!!!: {}\n\n", text_roi1)
@@ -193,20 +210,6 @@ class MDSU:
 
                 # Update previous text_roi2 and distance
                 self.prev_text_roi2 = text_roi2
-
-            # Save the ROIs to files (optional)
-            if self.save_images:
-                # Create PIL images from the extracted ROIs
-                roi1_image = enhanced_roi1
-                roi2_image = enhanced_roi2
-
-                # Add the count for the filename
-                self.sscount += 1
-
-                # Save the screenshots
-                self.screenshot.save(os.path.join(self.save_folder, '{}.png'.format(self.sscount)))
-                roi1_image.save(os.path.join(self.save_folder, '{}-roi1.png'.format(self.sscount)))
-                roi2_image.save(os.path.join(self.save_folder, '{}-roi2.png'.format(self.sscount)))
 
             self.screenshot.close()
             self.screenshot = None

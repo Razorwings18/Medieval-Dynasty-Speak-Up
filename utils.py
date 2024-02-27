@@ -11,7 +11,7 @@ from file_ops import *
 class Util:
     def __init__(self):
         self.tts_class = TTS()
-        self.textcolor_threshold = 190 # 190 works perfectly without reshade
+        self.textcolor_threshold = 180 # 190 works perfectly without reshade
         
         # Load the voice-character relationships from the JSON file
         self.name_to_voice = load_from_json("voices.json") # Key: name of character, Value: [voice name, rate, pitch]
