@@ -32,6 +32,9 @@ class MDSU:
         self.voice_params = load_from_json("voice_config.json")
         self.ocr_language = self.voice_params["ocr_lang"]
 
+        # Load the sex info from the JSON file
+        self.sex_info = load_from_json("sex_info.json")
+
         # Load the reshade config
         self.reshade_config = load_from_json("reshade_config.json")
         print("\nReshade config. Use Reshade: " + str(self.reshade_config["use_reshade"]) + ". Screenshot key: " + str(self.reshade_config["screenshot_key"]))
@@ -81,8 +84,15 @@ class MDSU:
             time.sleep(0.1)
 
             # Get the latest screenshot without reshade
+            i = 3
             screenshot_file = self.util.find_newest_original_file()
-            print("Screenshot file: {}\nLast screenshot file: {}".format(screenshot_file, self.last_screenshot_file))
+            while i > 0 and screenshot_file == self.last_screenshot_file:
+                # Attempt a couple of times to get the latest screenshot, since the ReShade screenshot is not always ready
+                #   in time
+                time.sleep(0.2)
+                screenshot_file = self.util.find_newest_original_file()
+                i -= 1
+            print("Screenshot file: {}\nLast screenshot file: {}".format(screenshot_file, self.last_screenshot_file))            
             
             if screenshot_file is not None and screenshot_file != self.last_screenshot_file:
                 print("Found new screenshot. Selected for OCR.")
@@ -179,7 +189,13 @@ class MDSU:
                 if (distance > 10):
                     if "Age" in text_roi1 or "Ade:" in text_roi1 or "Mood" in text_roi1 or "dad:" in text_roi1 or "Sstado" in text_roi1:
                         self.util.tts_class.stop_playback()
-                        if "Affection" in text_roi1 or "Afecto" in text_roi1 or character_name[-1] == "a":
+
+                        character_sex = None
+                        if character_name in self.sex_info.keys():
+                            character_sex = self.sex_info[character_name]
+
+                        if (("Affection" in text_roi1 or "Afecto" in text_roi1 or character_name[-1] == "a")
+                            or (character_sex is not None and character_sex == "female")):
                             # Only females have affection. Psychologists might dispute this.
                             self.util.play_speech(text_roi2, "Female", character_name)
                         else:

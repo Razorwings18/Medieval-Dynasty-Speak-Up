@@ -4,3 +4,4 @@
 /output.mp3
 temp_storage/*.png
 debug_screenshots/*.*
+training_data/*.*
