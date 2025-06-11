@@ -16,7 +16,7 @@ from file_ops import *
 class MDSU:
     def __init__(self):
         self.util = Util()
-        self.save_images = True # Save detected images into self.save_folder for debug purposes
+        self.debug_mode = True # Prints debug messages and saves detected images into self.save_folder for debug purposes
         self.save_folder = "debug_screenshots"
         
         # Initialize variables used in analysis
@@ -107,6 +107,9 @@ class MDSU:
             self.screenshot = pyautogui.screenshot()
 
         if self.screenshot is not None:
+            if self.debug_mode:
+                start_time = time.perf_counter()
+
             # Convert the screenshot to a NumPy array for further processing
             screenshot_array = np.array(self.screenshot)
 
@@ -130,6 +133,10 @@ class MDSU:
             roi1 = screenshot_array[roi1_top:roi1_bottom, roi1_left:roi1_right, :]
             roi2 = screenshot_array[roi2_top:roi2_bottom, roi2_left:roi2_right, :]
 
+            if self.debug_mode:
+                print("Time to extract ROIs: {:.2f} seconds".format(time.perf_counter() - start_time))
+                start_time = time.perf_counter()
+
             # Resize roi1 and roi2 to twice their size
             resized_roi1 = self.util.resize_image(Image.fromarray(roi1))
             resized_roi2 = self.util.resize_image(Image.fromarray(roi2))
@@ -145,6 +152,10 @@ class MDSU:
             # Perform OCR on enhanced roi1 and roi2
             text_roi1 = pytesseract.image_to_string(np.array(enhanced_roi1), lang=self.ocr_language, config='--psm 6')  # Adjust config based on your needs
             text_roi2 = pytesseract.image_to_string(np.array(enhanced_roi2), lang=self.ocr_language, config='--psm 6')  # Adjust config based on your needs
+
+            if self.debug_mode:
+                print("Time to format and extract text from ROIs: {:.2f} seconds".format(time.perf_counter() - start_time))
+                start_time = time.perf_counter()
 
             # Extract the first word longer than 3 letters, which should be the name
             text_roi1 = text_roi1.replace('|', 'I')
@@ -186,13 +197,17 @@ class MDSU:
                 distance = self.util.levenshtein_distance(text_roi2, self.prev_text_roi2)
 
                 # Check if the text difference (Levenshtein distance) is more than 10
-                if (distance > 10):
+                if (distance > 6):
                     if "Age" in text_roi1 or "Ade:" in text_roi1 or "Mood" in text_roi1 or "dad:" in text_roi1 or "Sstado" in text_roi1:
                         self.util.tts_class.stop_playback()
 
                         character_sex = None
                         if character_name in self.sex_info.keys():
                             character_sex = self.sex_info[character_name]
+
+                        if self.debug_mode:
+                            print("Time to ready to play speech: {:.2f} seconds".format(time.perf_counter() - start_time))
+                            start_time = time.perf_counter()
 
                         if (("Affection" in text_roi1 or "Afecto" in text_roi1 or character_name[-1] == "a")
                             or (character_sex is not None and character_sex == "female")):
@@ -202,7 +217,7 @@ class MDSU:
                             self.util.play_speech(text_roi2, "Male", character_name)
 
                         # Save the ROIs to files (optional)
-                        if self.save_images:
+                        if self.debug_mode:
                             # Create PIL images from the extracted ROIs
                             roi1_image = enhanced_roi1
                             roi2_image = enhanced_roi2

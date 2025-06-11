@@ -7,11 +7,13 @@ from TTS import TTS
 import numpy as np
 from PIL import Image
 from file_ops import *
+import time
 
 class Util:
     def __init__(self):
         self.tts_class = TTS()
         self.textcolor_threshold = 180 # 190 works perfectly without reshade
+        self.debug_mode = True # Outputs debug messages if True
         
         # Load the voice-character relationships from the JSON file
         self.name_to_voice = load_from_json("voices.json") # Key: name of character, Value: [voice name, rate, pitch]

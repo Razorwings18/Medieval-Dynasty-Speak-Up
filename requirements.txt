@@ -1,0 +1,8 @@
+pyautogui
+numpy
+pillow
+pytesseract
+Levenshtein
+keyboard
+pygame
+edge_tts
