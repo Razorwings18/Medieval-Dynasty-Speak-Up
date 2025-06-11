@@ -10,3 +10,4 @@ training_data/
 debug_screenshots/
 venv/*
 venv/*.*
+venv
