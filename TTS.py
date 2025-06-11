@@ -19,14 +19,14 @@ OUTPUT_FILE = "output.mp3"
 
 
 class TTS:
-    def __init__(self):
+    def __init__(self, language):
         self.background_tasks = set()
         self.loop = asyncio.get_event_loop_policy().get_event_loop()
         self.t1 = None
         self.last_selected_voice = None
         self.stop_event = asyncio.Event()
 
-        self.voice_params = load_from_json("voice_config.json")
+        self.voice_params = load_from_json("voice_config_" + language + ".json")
         self.language = self.voice_params["locales"][0][:2]
         self.voices = None # Will store the VoicesManager instance after first use
 

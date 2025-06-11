@@ -1,5 +1,4 @@
 /pending.txt
-/voices.json
 /__pycache__
 /output.mp3
 temp_storage/*.png
@@ -11,3 +10,4 @@ debug_screenshots/
 venv/*
 venv/*.*
 venv
+voices_*.json

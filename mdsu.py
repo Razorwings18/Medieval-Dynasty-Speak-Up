@@ -15,9 +15,19 @@ from file_ops import *
 
 class MDSU:
     def __init__(self):
-        self.util = Util()
+        # Load the config file
+        self.config_settings = load_from_json("config.json")
+        
+        # Initialize variables
         self.debug_mode = True # Prints debug messages and saves detected images into self.save_folder for debug purposes
         self.save_folder = "debug_screenshots"
+        if "language" in self.config_settings.keys():
+            self.language = self.config_settings["language"] # Language; "eng" for English, "spa" for Spanish. This 3-letter designation
+                                                             #     is the one used by Tesseract, so we'll use it too.
+        else:
+            self.language = "eng" # Default to English
+        
+        self.util = Util(self.language)
         
         # Initialize variables used in analysis
         self.sscount = 0
@@ -28,20 +38,19 @@ class MDSU:
         self.analysis_delay = 0.5 # Time it takes since the key was pressed to start the analysis. Used to wait for the dialogue text to slide up.
 
         # Set the path to the Tesseract executable (modify this path based on your installation)
-        pytesseract.pytesseract.tesseract_cmd = r'D:\Program Files\Tesseract-OCR\tesseract.exe'
-        self.voice_params = load_from_json("voice_config.json")
+        pytesseract.pytesseract.tesseract_cmd = self.config_settings["tesseract_path"]
+        self.voice_params = load_from_json("voice_config_" + self.language + ".json")
         self.ocr_language = self.voice_params["ocr_lang"]
 
         # Load the sex info from the JSON file
         self.sex_info = load_from_json("sex_info.json")
 
-        # Load the reshade config
-        self.reshade_config = load_from_json("reshade_config.json")
-        print("\nReshade config. Use Reshade: " + str(self.reshade_config["use_reshade"]) + ". Screenshot key: " + str(self.reshade_config["screenshot_key"]))
-        self.use_reshade = self.reshade_config["use_reshade"]
+        # Initialize the reshade config
+        print("\nReshade config. Use Reshade: " + str(self.config_settings["use_reshade"]) + ". Screenshot key: " + str(self.config_settings["reshade_screenshot_key"]))
+        self.use_reshade = self.config_settings["use_reshade"]
         
         # Initialize the keyboard emulator. This will poll for key presses and call analyze() when required.
-        self.keyboard_emulator = KeyboardEmulator(self, self.reshade_config["screenshot_key"])
+        self.keyboard_emulator = KeyboardEmulator(self, self.config_settings["reshade_screenshot_key"])
 
         # Load the list of strings that should be ignored
         self.dont_say_these_strings = load_strings_from_file("dont_say.cfg")

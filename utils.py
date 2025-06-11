@@ -10,13 +10,14 @@ from file_ops import *
 import time
 
 class Util:
-    def __init__(self):
-        self.tts_class = TTS()
+    def __init__(self, language):
+        self.tts_class = TTS(language)
         self.textcolor_threshold = 180 # 190 works perfectly without reshade
         self.debug_mode = True # Outputs debug messages if True
         
         # Load the voice-character relationships from the JSON file
-        self.name_to_voice = load_from_json("voices.json") # Key: name of character, Value: [voice name, rate, pitch]
+        self.voice_character_file = "voices_" + language + ".json"
+        self.name_to_voice = load_from_json(self.voice_character_file) # Key: name of character, Value: [voice name, rate, pitch]
 
         # Get the pointer to the folder where temporary screenshots are stored
         script_folder = os.path.dirname(os.path.realpath(__file__))
@@ -86,7 +87,7 @@ class Util:
             print("\nNew voice for character {}: {}\n".format(character_name, voice))
             
             # Save the new character-voice relation to a JSON file
-            write_to_json(self.name_to_voice, "voices.json")
+            write_to_json(self.name_to_voice, self.voice_character_file)
 
 
     # Function to enhance contrast
