@@ -109,4 +109,8 @@ To close the application, simply switch to the terminal window where it is runni
 
 ---
 
+<<<<<<< HEAD
 Created by **Diego Wasser** (Razorwings18).
+=======
+Created by **Diego Wasser** (Razorwings18).
+>>>>>>> 5d65a1854eced8f10a454ae32c6d88618a02509c
