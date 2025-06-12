@@ -150,7 +150,11 @@ class TTS:
         
         queue_and_task_setup_start_time = time.perf_counter()
         audio_queue = asyncio.Queue()
-        producer_task = asyncio.create_task(self._producer(sentences, selected_voice, audio_queue))
+
+        # Generate a unique ID for this TTS job to prevent file collisions
+        unique_id = f"{time.time()}_{random.randint(1000, 9999)}"
+        
+        producer_task = asyncio.create_task(self._producer(sentences, selected_voice, audio_queue, unique_id))
         consumer_task = asyncio.create_task(self._consumer(audio_queue))
         print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Audio queue and producer/consumer tasks initialized ({time.perf_counter() - queue_and_task_setup_start_time:.4f}s).")
 
@@ -177,7 +181,7 @@ class TTS:
             
         return [s for s in sentences if s]
 
-    async def _producer(self, sentences: list[str], voice_details: list, queue: asyncio.Queue):
+    async def _producer(self, sentences: list[str], voice_details: list, queue: asyncio.Queue, unique_id: str):
         """Generates audio for each sentence and puts the file path into a queue."""
         rate = f"+{voice_details[1]}%" if voice_details[1] >= 0 else f"{voice_details[1]}%"
         volume = f"+{self.voice_params['volume']}%" if self.voice_params['volume'] >= 0 else f"{self.voice_params['volume']}%"
@@ -188,7 +192,7 @@ class TTS:
                 print("TTS generation stopped by user.")
                 break
                 
-            output_file = f"output_{i}.mp3"
+            output_file = f"output_{unique_id}_{i}.mp3"
             communicate = edge_tts.Communicate(sentence, voice_details[0], rate=rate, volume=volume, pitch=pitch)
             
             sentence_generation_attempt_start_time = time.perf_counter()

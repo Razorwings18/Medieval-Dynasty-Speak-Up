@@ -14,10 +14,25 @@ def load_from_json(filename):
     except FileNotFoundError:
         # If the file doesn't exist, create an empty dictionary
         data = {}
-        write_to_json(filename, data)
+        write_to_json(data, filename)
+    except json.JSONDecodeError:
+        print(f"Warning: Could not decode JSON from {filename}. Returning empty dictionary.")
+        data = {}
     return data
 
 def load_strings_from_file(filename):
-    with open(filename, 'r', encoding='utf-8') as file:
-        strings_list = file.read().splitlines()
+    try:
+        with open(filename, 'r', encoding='utf-8') as file:
+            strings_list = file.read().splitlines()
+    except FileNotFoundError:
+        strings_list = []
     return strings_list
+
+def write_strings_to_file(filename, strings_list):
+    """Writes a list of strings to a file, one string per line."""
+    try:
+        with open(filename, 'w', encoding='utf-8') as file:
+            for item in strings_list:
+                file.write(f"{item}\n")
+    except Exception as e:
+        print(f"Error writing to file {filename}: {e}")

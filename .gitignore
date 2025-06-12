@@ -11,3 +11,4 @@ venv/*
 venv/*.*
 venv
 voices_*.json
+/*.code-workspace

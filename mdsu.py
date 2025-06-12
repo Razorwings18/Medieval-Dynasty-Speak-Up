@@ -12,9 +12,10 @@ import os
 from keyboard_emulator import KeyboardEmulator
 from utils import Util
 from file_ops import *
+import asyncio
 
 class MDSU:
-    def __init__(self):
+    def __init__(self, loop):
         # Load the config file
         self.config_settings = load_from_json("config.json")
         
@@ -37,6 +38,9 @@ class MDSU:
         self.prev_text_roi2 = "" # Initialize variable to store the previous text_roi2
         self.analysis_delay = 0.5 # Time it takes since the key was pressed to start the analysis. Used to wait for the dialogue text to slide up.
 
+        self.loop = loop
+        self.analysis_lock = asyncio.Lock()
+
         # Set the path to the Tesseract executable (modify this path based on your installation)
         pytesseract.pytesseract.tesseract_cmd = self.config_settings["tesseract_path"]
         self.voice_params = load_from_json("voice_config_" + self.language + ".json")
@@ -49,8 +53,11 @@ class MDSU:
         print("\nReshade config. Use Reshade: " + str(self.config_settings["use_reshade"]) + ". Screenshot key: " + str(self.config_settings["reshade_screenshot_key"]))
         self.use_reshade = self.config_settings["use_reshade"]
         
+        # Flag to control the main loop
+        self.running = False
+
         # Initialize the keyboard emulator. This will poll for key presses and call analyze() when required.
-        self.keyboard_emulator = KeyboardEmulator(self, self.config_settings["reshade_screenshot_key"])
+        self.keyboard_emulator = KeyboardEmulator(self, self.config_settings["reshade_screenshot_key"], self.loop)
 
         # Load the list of strings that should be ignored
         self.dont_say_these_strings = load_strings_from_file("dont_say.cfg")
@@ -59,46 +66,68 @@ class MDSU:
         # Delete any leftover screenshots in the temp folder
         print("Emptying temp folder...")
         self.util.empty_screenshot_folder()
-        
-        # Just loop until the user exits
-        try:
-            while True:
-                 time.sleep(0.3)
-        except KeyboardInterrupt:
-            print("Emptying temp folder...")
-            self.util.empty_screenshot_folder()
             
-            print("\nClosing. This may take up to a minute...")
-            #thread.join() # Commented because YOLO. And daemons.
+    async def run(self):
+        """Starts the main loop of the application."""
+        self.running = True
+        try:
+            # The KeyboardEmulator runs in its own thread, polling for keys.
+            # This loop just keeps the main thread of this class alive.
+            while self.running:
+                await asyncio.sleep(0.3)
+        finally:
+            # Cleanup when the loop is stopped
+            print("MDSU loop finished. Cleaning up...")
+            self.util.empty_screenshot_folder()
 
-    def analyze(self):
-        self.found_name_without_text = False
+    def stop(self):
+        """Signals the main loop to stop and cleans up resources."""
+        print("MDSU.stop() called. Stopping components.")
+        self.running = False
+        if self.keyboard_emulator:
+            self.keyboard_emulator.stop()
+        if self.util and self.util.tts_class:
+            self.util.tts_class.stop_playback()
 
-        # Wait some time for the dialogue text to slide up
-        time.sleep(self.analysis_delay)
+    async def analyze(self):
+        if self.analysis_lock.locked():
+            print("Analysis already in progress, skipping new request.")
+            return
 
-        # Analyze the image
-        self.image_analysis()
-        if self.found_name_without_text:
-            # The analysis found a character's name but no dialogue. This might be because the dialogue is still sliding up, so we wait a little more
-            #   and rerun the analysis a second time.
-            time.sleep(self.analysis_delay * 2)
-            self.image_analysis()
+        async with self.analysis_lock:
+            if not self.running:
+                return # Don't analyze if we are stopping
+
+            self.found_name_without_text = False
+
+            # Wait some time for the dialogue text to slide up
+            await asyncio.sleep(self.analysis_delay)
+
+            # Analyze the image
+            await self.image_analysis()
+            if self.found_name_without_text and self.running:
+                # The analysis found a character's name but no dialogue. This might be because the dialogue is still sliding up, so we wait a little more
+                #   and rerun the analysis a second time.
+                await asyncio.sleep(self.analysis_delay * 2)
+                await self.image_analysis()
     
-    def image_analysis(self):
+    async def image_analysis(self):
+        if not self.running:
+            return
+            
         if self.use_reshade:
             # Take a screenshot with ReShade
             print("Taking screenshot...")
             self.keyboard_emulator.keystroke(self.keyboard_emulator.reshade_key, None, 0.1)
-            time.sleep(0.1)
+            await asyncio.sleep(0.1)
 
             # Get the latest screenshot without reshade
             i = 3
             screenshot_file = self.util.find_newest_original_file()
-            while i > 0 and screenshot_file == self.last_screenshot_file:
+            while i > 0 and screenshot_file == self.last_screenshot_file and self.running:
                 # Attempt a couple of times to get the latest screenshot, since the ReShade screenshot is not always ready
                 #   in time
-                time.sleep(0.2)
+                await asyncio.sleep(0.2)
                 screenshot_file = self.util.find_newest_original_file()
                 i -= 1
             print("Screenshot file: {}\nLast screenshot file: {}".format(screenshot_file, self.last_screenshot_file))            
@@ -115,7 +144,7 @@ class MDSU:
             # Capture the screen
             self.screenshot = pyautogui.screenshot()
 
-        if self.screenshot is not None:
+        if self.screenshot is not None and self.running:
             if self.debug_mode:
                 start_time = time.perf_counter()
 
@@ -253,6 +282,3 @@ class MDSU:
 
             self.screenshot.close()
             self.screenshot = None
-
-if __name__ == "__main__":
-    mdsu = MDSU()
