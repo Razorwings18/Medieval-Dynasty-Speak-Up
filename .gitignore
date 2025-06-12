@@ -7,8 +7,10 @@ training_data/*.*
 training_data/*
 training_data/
 debug_screenshots/
+design/
 venv/*
 venv/*.*
 venv
 voices_*.json
 /*.code-workspace
+/log.txt

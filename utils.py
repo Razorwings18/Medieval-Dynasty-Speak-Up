@@ -1,3 +1,4 @@
+import tools
 import threading
 import json
 from PIL import ImageEnhance, ImageFilter
@@ -20,7 +21,8 @@ class Util:
         self.name_to_voice = load_from_json(self.voice_character_file) # Key: name of character, Value: [voice name, rate, pitch]
 
         # Get the pointer to the folder where temporary screenshots are stored
-        script_folder = os.path.dirname(os.path.realpath(__file__))
+        #script_folder = os.path.dirname(os.path.realpath(__file__))
+        script_folder = "."
         self.temp_storage_folder = os.path.join(script_folder, "temp_storage")
 
     def empty_screenshot_folder(self):
@@ -28,7 +30,7 @@ class Util:
         # Delete all .png files in temp_storage_folder
         for file in os.listdir(temp_storage_folder):
             if file.endswith(".png"):
-                print("Deleting {}".format(os.path.join(temp_storage_folder, file)))
+                tools.Log("Deleting {}".format(os.path.join(temp_storage_folder, file)))
                 os.remove(os.path.join(temp_storage_folder, file))
     
     def find_newest_original_file(self):
@@ -75,7 +77,7 @@ class Util:
 
         if foundname:
             voice = self.name_to_voice[character_name]
-            print("Using preset voice for character {}".format(character_name))
+            tools.Log("Using preset voice for character {}".format(character_name))
         else:
             voice = None
         thread = threading.Thread(target=self.tts_class.say, args=(text, gender, voice))
@@ -84,7 +86,7 @@ class Util:
             voice = self.tts_class.get_selected_voice()
             # Add a new character to self.name_to_voice and assign it the selected voice
             self.name_to_voice[character_name] = voice
-            print("\nNew voice for character {}: {}\n".format(character_name, voice))
+            tools.Log("\nNew voice for character {}: {}\n".format(character_name, voice))
             
             # Save the new character-voice relation to a JSON file
             write_to_json(self.name_to_voice, self.voice_character_file)

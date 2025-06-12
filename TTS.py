@@ -2,6 +2,7 @@
 Medieval Dynasty Speak Up TTS module
 Author: Razorwings18
 """
+import tools
 import asyncio
 import time
 from threading import Thread
@@ -56,12 +57,12 @@ class TTS:
         self._first_audio_loaded_into_mixer = False
         self._first_audio_playback_started = False
 
-        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] 'say' function started.")
+        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] 'say' function started.")
 
         # get a new event loop
         loop_creation_start_time = time.perf_counter()
         loop = asyncio.new_event_loop()
-        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] New event loop created ({time.perf_counter() - loop_creation_start_time:.4f}s).")
+        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] New event loop created ({time.perf_counter() - loop_creation_start_time:.4f}s).")
 
         # set the event loop for the current thread
         asyncio.set_event_loop(loop)
@@ -69,12 +70,12 @@ class TTS:
         # run a coroutine on the event loop
         amain_execution_start_time = time.perf_counter()
         loop.run_until_complete(self.amain(text, gender, preferred_voice))
-        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] 'amain' coroutine completed ({time.perf_counter() - amain_execution_start_time:.4f}s).")
+        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] 'amain' coroutine completed ({time.perf_counter() - amain_execution_start_time:.4f}s).")
         
         # remember to close the loop
         loop_closing_start_time = time.perf_counter()
         loop.close()
-        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Event loop closed ({time.perf_counter() - loop_closing_start_time:.4f}s).")
+        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Event loop closed ({time.perf_counter() - loop_closing_start_time:.4f}s).")
         
     def stop_playback(self):
         self.stop_event.set()
@@ -93,18 +94,18 @@ class TTS:
             try:
                 os.remove(f)
             except OSError as e:
-                print(f"Error removing temp file {f}: {e}")
+                tools.Log(f"Error removing temp file {f}: {e}")
 
     async def amain(self, output_text: str, gender: Literal["Male", "Female"] = None, preferred_voice = None) -> None:
         """Main function, now orchestrates sentence-by-sentence streaming."""
         self.stop_event.clear()
         
         amain_internal_entry_time = time.perf_counter()
-        print(f"DEBUG: [TIME +{amain_internal_entry_time - self._start_time_say:.4f}s] 'amain' internal execution started.")
+        tools.Log(f"DEBUG: [TIME +{amain_internal_entry_time - self._start_time_say:.4f}s] 'amain' internal execution started.")
 
         sentences_split_start_time = time.perf_counter()
         sentences = self._split_text_into_sentences(output_text)
-        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Text split into {len(sentences)} sentences ({time.perf_counter() - sentences_split_start_time:.4f}s).")
+        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Text split into {len(sentences)} sentences ({time.perf_counter() - sentences_split_start_time:.4f}s).")
 
         if not sentences:
             return
@@ -113,7 +114,7 @@ class TTS:
         if self.voices is None:
             voices_manager_creation_start_time = time.perf_counter()
             self.voices = await VoicesManager.create()
-            print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] VoicesManager created for the first time ({time.perf_counter() - voices_manager_creation_start_time:.4f}s).")
+            tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] VoicesManager created for the first time ({time.perf_counter() - voices_manager_creation_start_time:.4f}s).")
         voices = self.voices
 
         voice_selection_start_time = time.perf_counter()
@@ -140,11 +141,11 @@ class TTS:
             rand_pitch = random.randint(voice_params["min_pitch"], voice_params["max_pitch"])
             selected_voice = [random_voice_info["Name"], rand_rate, rand_pitch]
             short_name = random_voice_info.get("ShortName", "N/A")
-            print(f"Selected voice: {selected_voice}\nShort name: {short_name}")
+            tools.Log(f"Selected voice: {selected_voice}\nShort name: {short_name}")
         else:
             selected_voice = preferred_voice
-            print(f"Using preferred voice: {selected_voice[0]}")
-        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Voice selected ({time.perf_counter() - voice_selection_start_time:.4f}s).")
+            tools.Log(f"Using preferred voice: {selected_voice[0]}")
+        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Voice selected ({time.perf_counter() - voice_selection_start_time:.4f}s).")
 
         self.last_selected_voice = selected_voice
         
@@ -156,7 +157,7 @@ class TTS:
         
         producer_task = asyncio.create_task(self._producer(sentences, selected_voice, audio_queue, unique_id))
         consumer_task = asyncio.create_task(self._consumer(audio_queue))
-        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Audio queue and producer/consumer tasks initialized ({time.perf_counter() - queue_and_task_setup_start_time:.4f}s).")
+        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Audio queue and producer/consumer tasks initialized ({time.perf_counter() - queue_and_task_setup_start_time:.4f}s).")
 
         await asyncio.gather(producer_task, consumer_task)
 
@@ -189,7 +190,7 @@ class TTS:
         
         for i, sentence in enumerate(sentences):
             if self.stop_event.is_set():
-                print("TTS generation stopped by user.")
+                tools.Log("TTS generation stopped by user.")
                 break
                 
             output_file = f"output_{unique_id}_{i}.mp3"
@@ -197,18 +198,18 @@ class TTS:
             
             sentence_generation_attempt_start_time = time.perf_counter()
             if i == 0 and not self._first_audio_generated:
-                print(f"DEBUG: [TIME +{sentence_generation_attempt_start_time - self._start_time_say:.4f}s] Attempting to generate audio for the first sentence.")
+                tools.Log(f"DEBUG: [TIME +{sentence_generation_attempt_start_time - self._start_time_say:.4f}s] Attempting to generate audio for the first sentence.")
 
             try:
                 await communicate.save(output_file)
                 if i == 0 and not self._first_audio_generated:
                     # Log the duration of generating the first audio file
                     generation_duration = time.perf_counter() - sentence_generation_attempt_start_time
-                    print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First sentence audio generated ({generation_duration:.4f}s).")
+                    tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First sentence audio generated ({generation_duration:.4f}s).")
                     self._first_audio_generated = True
 
             except Exception as e:
-                print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Failed to generate audio for sentence (first attempt): {e}. Retrying...")
+                tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Failed to generate audio for sentence (first attempt): {e}. Retrying...")
                 await asyncio.sleep(0.5)
                 try:
                     # Re-create the communicate object for the retry
@@ -216,10 +217,10 @@ class TTS:
                     await communicate.save(output_file)
                     if i == 0 and not self._first_audio_generated: # Check again in case it was a retry for the first sentence
                         generation_duration = time.perf_counter() - sentence_generation_attempt_start_time
-                        print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First sentence audio generated (after retry) ({generation_duration:.4f}s).")
+                        tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First sentence audio generated (after retry) ({generation_duration:.4f}s).")
                         self._first_audio_generated = True
                 except Exception as retry_e:
-                    print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Failed to generate audio for sentence after retry: {retry_e}")
+                    tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Failed to generate audio for sentence after retry: {retry_e}")
                     continue # Skip to the next sentence
             
             put_in_queue_start_time = time.perf_counter()
@@ -227,7 +228,7 @@ class TTS:
             if i == 0 and not self._first_audio_put_in_queue:
                 # Log the duration of putting the file path into the queue
                 queue_put_duration = time.perf_counter() - put_in_queue_start_time
-                print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First audio file path put into queue ({queue_put_duration:.4f}s).")
+                tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First audio file path put into queue ({queue_put_duration:.4f}s).")
                 self._first_audio_put_in_queue = True
                 
         await queue.put(None) # Signal that production is complete
@@ -239,14 +240,14 @@ class TTS:
         if not pygame.mixer.get_init():
             try:
                 pygame.mixer.init()
-                print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Pygame mixer initialized ({time.perf_counter() - mixer_init_start_time:.4f}s).")
+                tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Pygame mixer initialized ({time.perf_counter() - mixer_init_start_time:.4f}s).")
             except pygame.error as e:
-                print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Failed to initialize pygame.mixer: {e}")
+                tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Failed to initialize pygame.mixer: {e}")
                 # Clean queue to prevent hanging
                 while not queue.empty(): await queue.get()
                 return
         else:
-            print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Pygame mixer already initialized.")
+            tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] Pygame mixer already initialized.")
         
         while not self.stop_event.is_set():
             get_from_queue_start_time = time.perf_counter()
@@ -259,7 +260,7 @@ class TTS:
             if not self._first_audio_retrieved_from_queue:
                 # Log the duration of retrieving the first file from the queue
                 retrieve_duration = time.perf_counter() - get_from_queue_start_time
-                print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First audio file retrieved from queue ({retrieve_duration:.4f}s to retrieve).")
+                tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First audio file retrieved from queue ({retrieve_duration:.4f}s to retrieve).")
                 self._first_audio_retrieved_from_queue = True
 
             if self.stop_event.is_set():
@@ -270,14 +271,14 @@ class TTS:
             try:
                 load_music_start_time = time.perf_counter()
                 if not self._first_audio_loaded_into_mixer:
-                    print(f"DEBUG: [TIME +{load_music_start_time - self._start_time_say:.4f}s] Attempting to load first audio file into mixer.")
+                    tools.Log(f"DEBUG: [TIME +{load_music_start_time - self._start_time_say:.4f}s] Attempting to load first audio file into mixer.")
                 
                 pygame.mixer.music.load(output_file)
                 
                 if not self._first_audio_loaded_into_mixer:
                     # Log the duration of loading the first audio file into the mixer
                     load_duration = time.perf_counter() - load_music_start_time
-                    print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First audio file loaded into mixer ({load_duration:.4f}s to load).")
+                    tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] First audio file loaded into mixer ({load_duration:.4f}s to load).")
                     self._first_audio_loaded_into_mixer = True
                 
                 play_music_start_time = time.perf_counter()
@@ -285,7 +286,7 @@ class TTS:
                 
                 if not self._first_audio_playback_started:
                     # This marks the exact moment the first audio starts playing
-                    print(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] TOTAL TIME UNTIL FIRST AUDIO STARTS PLAYING.")
+                    tools.Log(f"DEBUG: [TIME +{time.perf_counter() - self._start_time_say:.4f}s] TOTAL TIME UNTIL FIRST AUDIO STARTS PLAYING.")
                     self._first_audio_playback_started = True
                 
                 while pygame.mixer.music.get_busy():
@@ -295,7 +296,7 @@ class TTS:
                     await asyncio.sleep(0.1)
 
             except pygame.error as e:
-                print(f"Pygame error during playback: {e}")
+                tools.Log(f"Pygame error during playback: {e}")
             finally:
                 # This needs to be outside the playback loop but inside the file handling loop
                 pygame.mixer.music.unload() # Unload the file to release the handle
@@ -333,5 +334,5 @@ if __name__ == "__main__":
     
     t1 = Thread(target=tts_class.say, args=("Hoy es un buen día. ¿Cómo estás?", "Male"))
     t1.start()
-    print("done")
+    tools.Log("done")
     t1.join()

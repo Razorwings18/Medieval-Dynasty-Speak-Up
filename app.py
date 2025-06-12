@@ -4,6 +4,8 @@ import threading
 import time
 import os
 import queue
+import sys
+import tools
 
 from mdsu import MDSU
 from file_ops import load_from_json, write_to_json
@@ -11,6 +13,25 @@ from vk_map import VK_MAP
 from gui_sex_fix import SexFixWindow
 from gui_voice_config import VoiceConfigWindow
 from gui_ignored_phrases import IgnoredPhrasesWindow
+
+# Helper function to get resource path
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller."""
+    if getattr(sys, 'frozen', False):
+        # In frozen mode, _MEIPASS points to the temporary extraction directory for --onefile
+        base_path = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        # Uncomment for detailed build path debugging:
+        # tools.Log(f"Frozen mode detected. MEIPASS base path: {base_path}")
+    else:
+        # In development mode, base_path is the script directory
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        # Uncomment for detailed build path debugging:
+        # tools.Log(f"Development mode detected. Script base path: {base_path}")
+
+    abs_path = os.path.join(base_path, relative_path)
+    # Uncomment for detailed resource lookup debugging:
+    # tools.Log(f"Calculated bundled resource path for '{relative_path}': {abs_path}")
+    return abs_path
 
 class Tooltip:
     """
@@ -68,6 +89,7 @@ class App(tk.Tk):
 
         # --- Main App Initialization ---
         self.title("Medieval Dynasty Speak Up")
+        self.set_app_icon()
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         self.mdsu_instance = None
@@ -90,6 +112,56 @@ class App(tk.Tk):
         splash.destroy()
         self.deiconify() # Show the main window now that it's ready
     
+    def set_app_icon(self):
+        icon_relative_path_ico = os.path.join("icon", "icon.ico")
+        icon_relative_path_png = os.path.join("icon", "icon.png") # Add png for PhotoImage fallback
+
+        icon_path_ico = resource_path(icon_relative_path_ico)
+        icon_path_png = resource_path(icon_relative_path_png)
+
+
+        # Try .ico first (Windows preferred)
+        if os.path.exists(icon_path_ico):
+            try:
+                 # On Windows, iconbitmap is usually preferred
+                 if sys.platform.startswith('win'):
+                      self.iconbitmap(default=icon_path_ico)
+                 else:
+                      # On other platforms, iconbitmap might not support .ico well, try PhotoImage fallback
+                      raise tk.TclError("Attempting PhotoImage fallback for non-Windows .ico") # Force fallback path
+
+            except tk.TclError:
+                tools.Log(f"Warning: iconbitmap failed for {icon_path_ico}, attempting PhotoImage.")
+                # Fallback to PhotoImage (might work better with .png on non-Windows)
+                if os.path.exists(icon_path_png):
+                    try:
+                        img = tk.PhotoImage(file=icon_path_png)
+                        # wm iconphoto is the standard way for PhotoImage
+                        self.tk.call('wm', 'iconphoto', self._w, img)
+                        tools.Log(f"Successfully set icon using PhotoImage from {icon_path_png}.")
+                    except tk.TclError as e_photo:
+                        tools.Log(f"Warning: PhotoImage fallback failed for {icon_path_png}: {e_photo}")
+                    except Exception as e:
+                        tools.Log(f"Unexpected error in PhotoImage fallback: {e}")
+                else:
+                    tools.Log(f"Warning: PhotoImage fallback .png file not found: {icon_path_png}")
+            except Exception as e:
+                 tools.Log(f"Unexpected error setting icon with iconbitmap {icon_path_ico}: {e}")
+
+        # If .ico wasn't found or failed, try .png directly with PhotoImage
+        elif os.path.exists(icon_path_png):
+             tools.Log(f"Warning: Icon .ico file not found: {icon_path_ico}. Attempting PhotoImage from .png.")
+             try:
+                  img = tk.PhotoImage(file=icon_path_png)
+                  self.tk.call('wm', 'iconphoto', self._w, img)
+                  tools.Log(f"Successfully set icon using PhotoImage from {icon_path_png}.")
+             except tk.TclError as e_photo:
+                  tools.Log(f"Warning: PhotoImage failed for {icon_path_png}: {e_photo}")
+             except Exception as e:
+                  tools.Log(f"Unexpected error setting icon with PhotoImage {icon_path_png}: {e}")
+        else:
+            tools.Log(f"Warning: Both icon files not found: {icon_path_ico}, {icon_path_png}")
+
     def _process_queue(self):
         """Processes messages from the background thread queue."""
         try:
@@ -235,7 +307,7 @@ class App(tk.Tk):
             "reshade_screenshot_key": self.reshade_key_var.get()
         }
         write_to_json(config, "config.json")
-        print("Configuration saved.")
+        tools.Log("Configuration saved.")
 
     def _create_default_config(self):
         """Creates a default config.json file."""
@@ -331,12 +403,12 @@ class App(tk.Tk):
         key_name = key_map.get(key_name, key_name)
         
         if key_name in VK_MAP:
-            print(f"Key captured: {key_name}")
+            tools.Log(f"Key captured: {key_name}")
             self.reshade_key_var.set(key_name)
             self.key_capture_window.destroy()
             self._save_config_and_restart()
         else:
-            print(f"Unsupported key: {event.keysym} (mapped to '{key_name}')")
+            tools.Log(f"Unsupported key: {event.keysym} (mapped to '{key_name}')")
             # Update label to show error
             for widget in self.key_capture_window.winfo_children():
                 if isinstance(widget, ttk.Label):
@@ -354,7 +426,7 @@ class App(tk.Tk):
         try:
             # Put status update into the queue for the main thread to process
             self.queue.put("Status: Active")
-            print("MDSU Process: Starting...")
+            tools.Log("MDSU Process: Starting...")
             
             # The config is saved just before this thread starts, so MDSU will load the correct values
             self.mdsu_instance = MDSU(loop) 
@@ -362,10 +434,10 @@ class App(tk.Tk):
             # This will block until the coroutine completes.
             loop.run_until_complete(self.mdsu_instance.run())
             
-            print("MDSU Process: Finished cleanly.")
+            tools.Log("MDSU Process: Finished cleanly.")
 
         except Exception as e:
-            print(f"An error occurred in the MDSU process: {e}")
+            tools.Log(f"An error occurred in the MDSU process: {e}")
             # Put status update into the queue for the main thread to process
             self.queue.put("Status: Error")
         finally:
@@ -374,14 +446,14 @@ class App(tk.Tk):
     
     def start_mdsu_thread(self):
         if self.mdsu_thread is not None and self.mdsu_thread.is_alive():
-            print("MDSU thread is already running.")
+            tools.Log("MDSU thread is already running.")
             return
 
         # --- Validation in Main Thread ---
         tess_path = self.tesseract_path_var.get()
         if not tess_path or not os.path.exists(tess_path):
             errmsg = f"Tesseract executable not found at:\n{tess_path}\nPlease set the correct path in the configuration."
-            print(f"Tesseract path is invalid or not set: {tess_path}")
+            tools.Log(f"Tesseract path is invalid or not set: {tess_path}")
             self.status_var.set("Status: Error - Invalid Tesseract Path")
             # Update top status label to inactive state explicitly
             self.top_status_var.set(self.INACTIVE_STATUS_MSG)
@@ -396,7 +468,7 @@ class App(tk.Tk):
 
     def stop_mdsu_thread(self):
         if self.mdsu_instance:
-            print("Stopping MDSU process...")
+            tools.Log("Stopping MDSU process...")
             self.status_var.set("Status: Stopping...")
             # Also update top status to inactive immediately
             self.top_status_var.set(self.INACTIVE_STATUS_MSG)
@@ -405,13 +477,13 @@ class App(tk.Tk):
         if self.mdsu_thread is not None and self.mdsu_thread.is_alive():
             self.mdsu_thread.join(timeout=5) # Wait for the thread to finish
             if self.mdsu_thread.is_alive():
-                print("Warning: MDSU thread did not stop gracefully.")
+                tools.Log("Warning: MDSU thread did not stop gracefully.")
         
         self.mdsu_thread = None
         self.status_var.set("Status: Inactive")
         # Ensure top status is definitively inactive after stopping
         self.top_status_var.set(self.INACTIVE_STATUS_MSG)
-        print("MDSU process stopped.")
+        tools.Log("MDSU process stopped.")
 
     def restart_mdsu_thread(self):
         self.stop_mdsu_thread()
@@ -420,11 +492,12 @@ class App(tk.Tk):
 
     def _on_closing(self):
         """Handles the window close event."""
-        print("Closing application...")
+        tools.Log("Closing application...")
         self.stop_mdsu_thread()
         self.destroy()
 
 
 if __name__ == "__main__":
+    tools.ClearLog()
     app = App()
     app.mainloop()

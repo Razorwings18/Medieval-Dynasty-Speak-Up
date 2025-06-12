@@ -2,7 +2,7 @@
 Medieval Dynasty Speak Up
 Author: Razorwings18
 """
-print("Loading dependencies...")
+import tools
 import pyautogui, time
 import numpy as np
 from PIL import Image
@@ -50,7 +50,7 @@ class MDSU:
         self.sex_info = load_from_json("sex_info.json")
 
         # Initialize the reshade config
-        print("\nReshade config. Use Reshade: " + str(self.config_settings["use_reshade"]) + ". Screenshot key: " + str(self.config_settings["reshade_screenshot_key"]))
+        tools.Log("\nReshade config. Use Reshade: " + str(self.config_settings["use_reshade"]) + ". Screenshot key: " + str(self.config_settings["reshade_screenshot_key"]))
         self.use_reshade = self.config_settings["use_reshade"]
         
         # Flag to control the main loop
@@ -61,10 +61,10 @@ class MDSU:
 
         # Load the list of strings that should be ignored
         self.dont_say_these_strings = load_strings_from_file("dont_say.cfg")
-        print("\nIgnored strings: {}".format(self.dont_say_these_strings))
+        tools.Log("\nIgnored strings: {}".format(self.dont_say_these_strings))
 
         # Delete any leftover screenshots in the temp folder
-        print("Emptying temp folder...")
+        tools.Log("Emptying temp folder...")
         self.util.empty_screenshot_folder()
             
     async def run(self):
@@ -77,12 +77,12 @@ class MDSU:
                 await asyncio.sleep(0.3)
         finally:
             # Cleanup when the loop is stopped
-            print("MDSU loop finished. Cleaning up...")
+            tools.Log("MDSU loop finished. Cleaning up...")
             self.util.empty_screenshot_folder()
 
     def stop(self):
         """Signals the main loop to stop and cleans up resources."""
-        print("MDSU.stop() called. Stopping components.")
+        tools.Log("MDSU.stop() called. Stopping components.")
         self.running = False
         if self.keyboard_emulator:
             self.keyboard_emulator.stop()
@@ -91,7 +91,7 @@ class MDSU:
 
     async def analyze(self):
         if self.analysis_lock.locked():
-            print("Analysis already in progress, skipping new request.")
+            tools.Log("Analysis already in progress, skipping new request.")
             return
 
         async with self.analysis_lock:
@@ -117,7 +117,7 @@ class MDSU:
             
         if self.use_reshade:
             # Take a screenshot with ReShade
-            print("Taking screenshot...")
+            tools.Log("Taking screenshot...")
             self.keyboard_emulator.keystroke(self.keyboard_emulator.reshade_key, None, 0.1)
             await asyncio.sleep(0.1)
 
@@ -130,10 +130,10 @@ class MDSU:
                 await asyncio.sleep(0.2)
                 screenshot_file = self.util.find_newest_original_file()
                 i -= 1
-            print("Screenshot file: {}\nLast screenshot file: {}".format(screenshot_file, self.last_screenshot_file))            
+            tools.Log("Screenshot file: {}\nLast screenshot file: {}".format(screenshot_file, self.last_screenshot_file))            
             
             if screenshot_file is not None and screenshot_file != self.last_screenshot_file:
-                print("Found new screenshot. Selected for OCR.")
+                tools.Log("Found new screenshot. Selected for OCR.")
                 # Open the PNG image file
                 try:
                     self.screenshot = Image.open(screenshot_file)
@@ -172,7 +172,7 @@ class MDSU:
             roi2 = screenshot_array[roi2_top:roi2_bottom, roi2_left:roi2_right, :]
 
             if self.debug_mode:
-                print("Time to extract ROIs: {:.2f} seconds".format(time.perf_counter() - start_time))
+                tools.Log("Time to extract ROIs: {:.2f} seconds".format(time.perf_counter() - start_time))
                 start_time = time.perf_counter()
 
             # Resize roi1 and roi2 to twice their size
@@ -192,7 +192,7 @@ class MDSU:
             text_roi2 = pytesseract.image_to_string(np.array(enhanced_roi2), lang=self.ocr_language, config='--psm 6')  # Adjust config based on your needs
 
             if self.debug_mode:
-                print("Time to format and extract text from ROIs: {:.2f} seconds".format(time.perf_counter() - start_time))
+                tools.Log("Time to format and extract text from ROIs: {:.2f} seconds".format(time.perf_counter() - start_time))
                 start_time = time.perf_counter()
 
             # Extract the first word longer than 3 letters, which should be the name
@@ -244,7 +244,7 @@ class MDSU:
                             character_sex = self.sex_info[character_name]
 
                         if self.debug_mode:
-                            print("Time to ready to play speech: {:.2f} seconds".format(time.perf_counter() - start_time))
+                            tools.Log("Time to ready to play speech: {:.2f} seconds".format(time.perf_counter() - start_time))
                             start_time = time.perf_counter()
 
                         if (("Affection" in text_roi1 or "Afecto" in text_roi1 or character_name[-1] == "a")
@@ -268,14 +268,14 @@ class MDSU:
                             roi1_image.save(os.path.join(self.save_folder, '{}-roi1.png'.format(self.sscount)))
                             roi2_image.save(os.path.join(self.save_folder, '{}-roi2.png'.format(self.sscount)))
                         
-                        print("\nDistance: {}\n\n{}: {}\n\n".format(distance, character_name, text_roi2))
+                        tools.Log("\nDistance: {}\n\n{}: {}\n\n".format(distance, character_name, text_roi2))
                     else:
-                        print("\n\nINVALID!!!!!!: {}\n\n", text_roi1)
+                        tools.Log("\n\nINVALID!!!!!!: {}\n\n", text_roi1)
                 else:
-                    print("#################################")
-                    print("Text is the same. Omitting. DISTANCE: " + str(distance))
-                    print("{}: {}".format(character_name, text_roi2))
-                    print("---------------------------------")
+                    tools.Log("#################################")
+                    tools.Log("Text is the same. Omitting. DISTANCE: " + str(distance))
+                    tools.Log("{}: {}".format(character_name, text_roi2))
+                    tools.Log("---------------------------------")
 
                 # Update previous text_roi2 and distance
                 self.prev_text_roi2 = text_roi2

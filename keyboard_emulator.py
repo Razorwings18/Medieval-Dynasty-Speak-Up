@@ -1,3 +1,4 @@
+import tools
 import ctypes, time, threading
 from vk_map import VK_MAP
 import keyboard, threading
@@ -33,7 +34,7 @@ class KeyboardEmulator:
             # Check for a keypress of e or ESC
             if keyboard.is_pressed('e') or keyboard.is_pressed('esc'):
                 if not press_detected_last_cycle:
-                    print("You pressed 'e' or 'esc'")
+                    tools.Log("You pressed 'e' or 'esc'")
                     asyncio.run_coroutine_threadsafe(self.parent.analyze(), self.loop)
                 press_detected_last_cycle = True
             else:
@@ -42,14 +43,14 @@ class KeyboardEmulator:
                     if keyboard.is_pressed(str(i)):
                         press_detected = True
                         if not press_detected_last_cycle:
-                            print(f"You pressed the number {i}")
+                            tools.Log(f"You pressed the number {i}")
                             asyncio.run_coroutine_threadsafe(self.parent.analyze(), self.loop)
                             press_detected_last_cycle = True
                         break
                 if not press_detected:
                     press_detected_last_cycle = False
             time.sleep(0.05)  # Adjust the sleep duration as needed
-        print("Keyboard polling thread stopped.")
+        tools.Log("Keyboard polling thread stopped.")
         
     def key_event(self, key, event):
         vk_code = self.VK_MAP.get(key, None)
