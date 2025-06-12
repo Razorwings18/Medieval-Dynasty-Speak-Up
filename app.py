@@ -96,6 +96,12 @@ class App(tk.Tk):
             message = self.queue.get_nowait()
             # Update the GUI with the message because this is the main thread
             self.status_var.set(message)
+            
+            # Update the top status label based on the detailed status
+            if message == "Status: Active":
+                self.top_status_var.set(self.ACTIVE_STATUS_MSG)
+            else:
+                self.top_status_var.set(self.INACTIVE_STATUS_MSG)
         except queue.Empty:
             pass
         finally:
@@ -109,6 +115,13 @@ class App(tk.Tk):
         self.use_reshade_var = tk.BooleanVar()
         self.reshade_key_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Status: Inactive")
+        
+        # Define the status messages as instance variables
+        self.ACTIVE_STATUS_MSG = "Keep this window open for the program to work. The program is currently ACTIVE and should output speech as you play."
+        self.INACTIVE_STATUS_MSG = "The program is currently INACTIVE and WON'T output speech. This may be temporary while an essential function is being restarted. If it doesn't activate within 10 to 20 seconds, there is an error. If so, try restarting it."
+
+        # New variable for the top status label, initialized with the inactive message
+        self.top_status_var = tk.StringVar(value=self.INACTIVE_STATUS_MSG)
 
     def _create_widgets(self):
         """Create and layout all the GUI widgets."""
@@ -117,9 +130,13 @@ class App(tk.Tk):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
+        # --- Top Status Label ---
+        self.top_status_label = ttk.Label(main_frame, textvariable=self.top_status_var, wraplength=600, justify=tk.CENTER, font=("Helvetica", 10, "bold"))
+        self.top_status_label.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=(0, 10))
+
         # --- Config Section ---
         config_frame = ttk.LabelFrame(main_frame, text="Main Configuration", padding="10")
-        config_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
+        config_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5) # Changed row from 0 to 1
         config_frame.columnconfigure(1, weight=1)
 
         # Language
@@ -170,7 +187,7 @@ class App(tk.Tk):
 
         # --- Buttons Section ---
         buttons_frame = ttk.Frame(main_frame)
-        buttons_frame.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=10)
+        buttons_frame.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=10) # Changed row from 1 to 2
 
         voice_params_btn = ttk.Button(buttons_frame, text="Voice Output Parameters", command=self._open_voice_config)
         voice_params_btn.pack(side=tk.LEFT, padx=5)
@@ -366,10 +383,14 @@ class App(tk.Tk):
             errmsg = f"Tesseract executable not found at:\n{tess_path}\nPlease set the correct path in the configuration."
             print(f"Tesseract path is invalid or not set: {tess_path}")
             self.status_var.set("Status: Error - Invalid Tesseract Path")
+            # Update top status label to inactive state explicitly
+            self.top_status_var.set(self.INACTIVE_STATUS_MSG)
             messagebox.showerror("Tesseract Error", errmsg)
             return # Do not start the thread
 
         # --- Start the thread ---
+        # Before starting, set the top status to inactive, it will become active once MDSU reports success via queue
+        self.top_status_var.set(self.INACTIVE_STATUS_MSG)
         self.mdsu_thread = threading.Thread(target=self._run_mdsu_process, daemon=True)
         self.mdsu_thread.start()
 
@@ -377,6 +398,8 @@ class App(tk.Tk):
         if self.mdsu_instance:
             print("Stopping MDSU process...")
             self.status_var.set("Status: Stopping...")
+            # Also update top status to inactive immediately
+            self.top_status_var.set(self.INACTIVE_STATUS_MSG)
             self.mdsu_instance.stop() # Signal the loop to exit
         
         if self.mdsu_thread is not None and self.mdsu_thread.is_alive():
@@ -386,6 +409,8 @@ class App(tk.Tk):
         
         self.mdsu_thread = None
         self.status_var.set("Status: Inactive")
+        # Ensure top status is definitively inactive after stopping
+        self.top_status_var.set(self.INACTIVE_STATUS_MSG)
         print("MDSU process stopped.")
 
     def restart_mdsu_thread(self):

@@ -20,7 +20,7 @@ class MDSU:
         self.config_settings = load_from_json("config.json")
         
         # Initialize variables
-        self.debug_mode = True # Prints debug messages and saves detected images into self.save_folder for debug purposes
+        self.debug_mode = False # Prints debug messages and saves detected images into self.save_folder for debug purposes
         self.save_folder = "debug_screenshots"
         if "language" in self.config_settings.keys():
             self.language = self.config_settings["language"] # Language; "eng" for English, "spa" for Spanish. This 3-letter designation
