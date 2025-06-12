@@ -62,6 +62,7 @@ That's it, unless you use **Reshade**. If so, continue reading below.
 If you use ReShade to enhance your game's visuals, follow these extra steps to make MDSU work correctly with it.
 
 Setting up ReShade:
+
 7.  Open the ReShade overlay in-game and go to the **Settings** tab.
 8.  Scroll down to the "Screenshots" section.
 9.  Set the **Screenshot key** to your preference.
@@ -73,6 +74,7 @@ Setting up ReShade:
 15.  You can now close the ReShade overlay.
 
 Setting up MDSU:
+
 16. In MDSU, check the **"Use Reshade" checkbox**.
 17. Change the screenshot key to the key you chose in **step 9**.
 
