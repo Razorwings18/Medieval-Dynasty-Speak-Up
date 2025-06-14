@@ -23,7 +23,8 @@ Also, **MDSU needs an internet connection**, since it uses Microsoft's Azure AI 
 -   **Only English and Spanish available**.
 -   **Sometimes it mispronounces words**.
 -   **Occasionally it will fail to output speech** when you select a dialogue option.
--   **May not work with aspect ratios other than 16:9. Multi-monitor options are untested**, but most probably won't work.
+-   **Children have a hormone imbalance**.
+-   **May not work with aspect ratios other than 16:9. Multi-monitor setups are untested**, but most probably won't work.
 
 
 ## Features
