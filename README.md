@@ -51,7 +51,7 @@ Also, **MDSU needs an internet connection**, since it uses Microsoft's Azure AI 
 1.  Download the Tesseract installer from the official Tesseract at UB Mannheim page: [**tesseract-ocr-w64-setup-v5.3.3.20231005.exe**](https://github.com/UB-Mannheim/tesseract/wiki) (or a newer version).
 2.  Run the installer. **Crucially, on the "Select Additional Language Data" screen, make sure to select the language pack that corresponds to your in-game language.** For English, this is `eng`. For Spanish, this is `spa`.
 3.  Note down the installation path (e.g., `C:\Program Files\Tesseract-OCR`).
-4.  **Download the latest MDSU installer** from the Releases section on the top-right, run it and follow the instructions.
+4.  **Download the latest MDSU installer** from the Releases section [here](https://github.com/Razorwings18/Medieval-Dynasty-Speak-Up/releases), run it and follow the instructions.
 5.  Run the program. **It must remain open while you play Medieval Dynasty for it to work!**
 6.  Set the location of **Tesseract's .exe file** from the path you noted down in **step 3**.
 
