@@ -1,4 +1,6 @@
 import tkinter as tk
+import tools
+import os
 from tkinter import ttk, messagebox
 from file_ops import load_from_json, write_to_json
 
@@ -6,7 +8,7 @@ class VoiceConfigWindow(tk.Toplevel):
     def __init__(self, parent, language):
         super().__init__(parent)
         self.language = language
-        self.config_filename = f"voice_config_{self.language}.json"
+        self.config_filename = os.path.join(tools.windows_appdata_path(), f"voice_config_{self.language}.json")
 
         self.title(f"Voice Parameters ({self.language.upper()})")
         self.transient(parent)
@@ -17,6 +19,7 @@ class VoiceConfigWindow(tk.Toplevel):
 
         if self.voice_params:
             self._create_widgets()
+            tools.setup_modal_toplevel(self, parent)
         else:
             self.destroy()
 

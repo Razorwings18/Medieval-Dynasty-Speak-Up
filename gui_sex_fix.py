@@ -1,6 +1,10 @@
 import tkinter as tk
+import tools
+import os
 from tkinter import ttk, messagebox
 from file_ops import load_from_json, write_to_json
+
+SEXINFOFILE_PATH = os.path.join(tools.windows_appdata_path(), "sex_info.json")
 
 class SexFixWindow(tk.Toplevel):
     def __init__(self, parent):
@@ -9,10 +13,12 @@ class SexFixWindow(tk.Toplevel):
         self.transient(parent)
         self.grab_set()
 
-        self.sex_info = load_from_json("sex_info.json")
+        self.sex_info = load_from_json(SEXINFOFILE_PATH)
 
         self._create_widgets()
         self._populate_list()
+
+        tools.setup_modal_toplevel(self, parent)
 
     def _create_widgets(self):
         main_frame = ttk.Frame(self, padding="10")
@@ -89,7 +95,7 @@ class SexFixWindow(tk.Toplevel):
             return
 
         self.sex_info[name] = sex
-        write_to_json(self.sex_info, "sex_info.json")
+        write_to_json(self.sex_info, SEXINFOFILE_PATH)
         self._populate_list()
         self.name_var.set("")
         #messagebox.showinfo("Success", f"'{name}' has been set to '{sex}'.", parent=self)
@@ -105,7 +111,7 @@ class SexFixWindow(tk.Toplevel):
 
         if name in self.sex_info:
             del self.sex_info[name]
-            write_to_json(self.sex_info, "sex_info.json")
+            write_to_json(self.sex_info, SEXINFOFILE_PATH)
             self._populate_list()
             self.name_var.set("")
             #messagebox.showinfo("Success", f"'{name}' has been removed.", parent=self)

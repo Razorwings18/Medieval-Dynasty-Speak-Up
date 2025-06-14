@@ -1,12 +1,14 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from file_ops import load_strings_from_file, write_strings_to_file
+import tools
+import os
 
 class IgnoredPhrasesWindow(tk.Toplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Edit Ignored Phrases")
-        self.filename = "dont_say.cfg"
+        self.filename = os.path.join(tools.windows_appdata_path(), "dont_say.cfg")
         self.transient(parent)
         self.grab_set()
 
@@ -14,6 +16,8 @@ class IgnoredPhrasesWindow(tk.Toplevel):
 
         self._create_widgets()
         self._populate_list()
+
+        tools.setup_modal_toplevel(self, parent)
 
     def _create_widgets(self):
         main_frame = ttk.Frame(self, padding="10")

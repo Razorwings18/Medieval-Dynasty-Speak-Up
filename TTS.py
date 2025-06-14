@@ -17,17 +17,25 @@ import glob
 import re
 
 OUTPUT_FILE = "output.mp3"
-
+TEMP_AUDIO_FOLDER = os.path.join(tools.windows_appdata_path(), "temp_audio")
 
 class TTS:
     def __init__(self, language):
+        # Clear the temporary audio folder in case leftovers remain from a previous session
+        tools.Log("Emptying temp audio folder...")
+        try:
+            for file in os.listdir(TEMP_AUDIO_FOLDER):
+                os.remove(os.path.join(TEMP_AUDIO_FOLDER, file))
+        except OSError as e:
+            tools.Log(f"Error clearing temp audio folder: {e}")        
+        
         self.background_tasks = set()
         self.loop = asyncio.get_event_loop_policy().get_event_loop()
         self.t1 = None
         self.last_selected_voice = None
         self.stop_event = asyncio.Event()
 
-        self.voice_params = load_from_json("voice_config_" + language + ".json")
+        self.voice_params = load_from_json(os.path.join(tools.windows_appdata_path(), "voice_config_" + language + ".json"))
         self.language = self.voice_params["locales"][0][:2]
         self.voices = None # Will store the VoicesManager instance after first use
 
@@ -90,7 +98,7 @@ class TTS:
                 self.last_selected_voice = None
         
         # Clean up any temporary files that might be left over
-        for f in glob.glob("output_*.mp3"):
+        for f in glob.glob("output_*.mp3", root_dir=TEMP_AUDIO_FOLDER):
             try:
                 os.remove(f)
             except OSError as e:
@@ -193,7 +201,7 @@ class TTS:
                 tools.Log("TTS generation stopped by user.")
                 break
                 
-            output_file = f"output_{unique_id}_{i}.mp3"
+            output_file = os.path.join(TEMP_AUDIO_FOLDER, f"output_{unique_id}_{i}.mp3")
             communicate = edge_tts.Communicate(sentence, voice_details[0], rate=rate, volume=volume, pitch=pitch)
             
             sentence_generation_attempt_start_time = time.perf_counter()

@@ -14,6 +14,8 @@ from gui_sex_fix import SexFixWindow
 from gui_voice_config import VoiceConfigWindow
 from gui_ignored_phrases import IgnoredPhrasesWindow
 
+CONFIGFILE_PATH = os.path.join(tools.windows_appdata_path(), "config.json")
+
 # Helper function to get resource path
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and for PyInstaller."""
@@ -99,6 +101,8 @@ class App(tk.Tk):
         self.LANG_MAP = {"English": "eng", "Spanish": "spa"}
         self.REV_LANG_MAP = {v: k for k, v in self.LANG_MAP.items()}
 
+        tools.create_default_datafiles() # Creates all fresh default data files
+
         self._create_config_vars()
         self._load_config()
 
@@ -107,11 +111,23 @@ class App(tk.Tk):
         self._process_queue()
         self.restart_mdsu_thread()
 
-        # --- Cleanup Splash and Show Main Window ---
+        # --- Center and Show Main Window ---
+        self.center_window()
         self.initializing = False
         splash.destroy()
         self.deiconify() # Show the main window now that it's ready
     
+    def center_window(self):
+        """Centers the main window on the screen."""
+        self.update_idletasks()
+        width = self.winfo_width()
+        height = self.winfo_height()
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        self.geometry(f'+{x}+{y}')
+
     def set_app_icon(self):
         icon_relative_path_ico = os.path.join("icon", "icon.ico")
         icon_relative_path_png = os.path.join("icon", "icon.png") # Add png for PhotoImage fallback
@@ -280,15 +296,13 @@ class App(tk.Tk):
     def _load_config(self):
         """Loads config.json and sets the UI variables."""
         try:
-            config = load_from_json("config.json")
+            config = load_from_json(CONFIGFILE_PATH)
             if not config: # If file was not found and an empty dict was created
-                self._create_default_config()
-                config = load_from_json("config.json")
+                config = load_from_json(CONFIGFILE_PATH)
 
         except Exception as e:
             messagebox.showerror("Config Error", f"Could not load config.json: {e}\nCreating a default config file.")
-            self._create_default_config()
-            config = load_from_json("config.json")
+            config = load_from_json(CONFIGFILE_PATH)
         
         lang_code = config.get("language", "eng")
         self.language_var.set(self.REV_LANG_MAP.get(lang_code, "English"))
@@ -306,9 +320,11 @@ class App(tk.Tk):
             "use_reshade": self.use_reshade_var.get(),
             "reshade_screenshot_key": self.reshade_key_var.get()
         }
-        write_to_json(config, "config.json")
+        write_to_json(config, CONFIGFILE_PATH)
         tools.Log("Configuration saved.")
 
+    '''
+    DEPRECATED - REMOVE IF EVERYTHING WORKS
     def _create_default_config(self):
         """Creates a default config.json file."""
         default_config = {
@@ -317,7 +333,8 @@ class App(tk.Tk):
             "use_reshade": False,
             "reshade_screenshot_key": "print_screen"
         }
-        write_to_json(default_config, "config.json")
+        write_to_json(default_config, CONFIGFILE_PATH)
+    '''
 
     def _save_config_and_restart(self, event=None):
         """Callback to save config and restart the background process."""
@@ -357,53 +374,114 @@ class App(tk.Tk):
 
     def _set_reshade_key(self):
         """Opens a modal window to capture a keypress for the Reshade key."""
-        self.key_capture_window = tk.Toplevel(self)
-        self.key_capture_window.title("Set Key")
-        self.key_capture_window.geometry("300x100")
-        self.key_capture_window.transient(self)
-        self.key_capture_window.grab_set()
+        win = tk.Toplevel(self)
+        self.key_capture_window = win # Maintain for use in _on_key_press_for_reshade
+        win.title("Set Key")
+        win.geometry("300x100")
+        win.transient(self)
+        win.grab_set()
 
-        # Center the window relative to the main app window
-        self.key_capture_window.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() // 2) - (self.key_capture_window.winfo_width() // 2)
-        y = self.winfo_y() + (self.winfo_height() // 2) - (self.key_capture_window.winfo_height() // 2)
-        self.key_capture_window.geometry(f"+{x}+{y}")
+        tools.setup_modal_toplevel(win, self)
         
-        label = ttk.Label(self.key_capture_window, text="Press any key to set as the Reshade key.\n(Press Escape to cancel)", justify=tk.CENTER)
+        label = ttk.Label(win, text="Press any key to set as the Reshade key.\n(Press Escape to cancel)", justify=tk.CENTER)
         label.pack(expand=True, pady=10)
         
-        self.key_capture_window.bind("<KeyPress>", self._on_key_press_for_reshade)
-        self.key_capture_window.bind("<Escape>", lambda e: self.key_capture_window.destroy())
-        self.key_capture_window.focus_set()
+        win.bind("<KeyPress>", self._on_key_press_for_reshade)
+        win.bind("<Escape>", lambda e: win.destroy())
+        win.focus_set()
 
-    def _on_key_press_for_reshade(self, event):
-        """Handles the keypress event for setting the Reshade key."""
-        # Ignore modifier keys themselves and the Escape key (used for cancelling)
-        if event.keysym in ('Shift_L', 'Shift_R', 'Control_L', 'Control_R', 'Alt_L', 'Alt_R', 'Super_L', 'Super_R', 'Escape'):
-            return
+    def _get_vk_map_key_from_event(self, event):
+        """
+        Translates a tkinter key event to a key name compatible with VK_MAP.
+        Handles ambiguities like numpad keys vs regular keys by checking keycodes on Windows.
+        Correctly handles casing for function keys.
+        """
+        original_keysym = event.keysym
+        keycode = event.keycode
 
-        key_name = event.keysym.lower()
-        
-        # Map tkinter's keysym names to the names used in VK_MAP
+        # Handle function keys first - their casing ('F1', 'F2') is important for VK_MAP.
+        if len(original_keysym) > 1 and original_keysym.startswith('F') and original_keysym[1:].isdigit():
+            try:
+                f_num = int(original_keysym[1:])
+                # VK_MAP contains F1 through F12
+                if 1 <= f_num <= 12:
+                    return original_keysym
+            except ValueError:
+                # Not a valid F-key (e.g., "F-other"), proceed to standard handling
+                pass
+
+        # For other keys, we can work with a lowercased version for consistency.
+        keysym = original_keysym.lower()
+
+        # On Windows, keycode is more reliable for distinguishing some keys.
+        # The keycodes correspond to Windows Virtual-Key Codes.
+        if sys.platform.startswith('win'):
+            # Numpad keys are a common source of ambiguity.
+            if keycode == 0x6F: return 'divide'       # VK_DIVIDE from numpad
+            if keycode == 0x6A: return 'multiply'     # VK_MULTIPLY from numpad
+            if keycode == 0x6D: return 'subtract'     # VK_SUBTRACT from numpad
+            if keycode == 0x6B: return 'add'          # VK_ADD from numpad
+            if keycode == 0x6E: return 'decimal'      # VK_DECIMAL from numpad
+            if keycode >= 0x60 and keycode <= 0x69:   # Numpad numbers
+                return f'num_{keycode - 0x60}'
+
+        # General mapping from tkinter keysyms to VK_MAP names.
+        # This is a fallback, for non-Windows, or for keys not covered above.
         key_map = {
             'prior': 'page_up',
             'next': 'page_down',
             'print': 'print_screen',
-            'space': 'spacebar',
             'return': 'enter',
-            'backspace': 'backspace',
-            'delete': 'delete',
-            'insert': 'insert',
+            'escape': 'esc',
             'left': 'left_arrow',
             'right': 'right_arrow',
             'up': 'up_arrow',
             'down': 'down_arrow',
-            'caps_lock': 'caps_lock',
+            # Fallback for numpad keysyms (e.g., on non-Windows)
+            'kp_divide': 'divide',
+            'kp_multiply': 'multiply',
+            'kp_subtract': 'subtract',
+            'kp_add': 'add',
+            'kp_decimal': 'decimal',
+            'kp_enter': 'enter',
+            'kp_0': 'num_0', 'kp_1': 'num_1', 'kp_2': 'num_2', 'kp_3': 'num_3', 'kp_4': 'num_4',
+            'kp_5': 'num_5', 'kp_6': 'num_6', 'kp_7': 'num_7', 'kp_8': 'num_8', 'kp_9': 'num_9',
+            # Other symbols that might have wordy keysyms
+            'slash': '/',
+            'backslash': '\\',
+            'semicolon': ';',
+            'equal': '=',
+            'comma': ',',
+            'minus': '-',
+            'period': '.',
+            'apostrophe': "'",
+            'grave': '`',
+            'bracketleft': '[',
+            'bracketright': ']',
         }
-        key_name = key_map.get(key_name, key_name)
+
+        # Check the map first
+        if keysym in key_map:
+            return key_map[keysym]
         
-        if key_name in VK_MAP:
-            tools.Log(f"Key captured: {key_name}")
+        # If not in map, the keysym itself might be the correct name
+        # (e.g., 'a', 'b', 'space', 'delete', 'insert', 'backspace', 'caps_lock')
+        return keysym
+
+    def _on_key_press_for_reshade(self, event):
+        """Handles the keypress event for setting the Reshade key."""
+        # Ignore modifier keys themselves
+        if event.keysym in ('Shift_L', 'Shift_R', 'Control_L', 'Control_R', 'Alt_L', 'Alt_R', 'Super_L', 'Super_R'):
+            return
+
+        # Escape is used for cancelling and is handled by the window binding, so ignore here.
+        if event.keysym == 'Escape':
+            return
+
+        key_name = self._get_vk_map_key_from_event(event)
+        
+        if key_name and key_name in VK_MAP:
+            tools.Log(f"Key captured: {key_name} (from keysym: {event.keysym}, keycode: {event.keycode})")
             self.reshade_key_var.set(key_name)
             self.key_capture_window.destroy()
             self._save_config_and_restart()
@@ -457,7 +535,7 @@ class App(tk.Tk):
             self.status_var.set("Status: Error - Invalid Tesseract Path")
             # Update top status label to inactive state explicitly
             self.top_status_var.set(self.INACTIVE_STATUS_MSG)
-            messagebox.showerror("Tesseract Error", errmsg)
+            messagebox.showwarning("Tesseract Error", errmsg)
             return # Do not start the thread
 
         # --- Start the thread ---

@@ -51,7 +51,6 @@ Also, **MDSU needs an internet connection**, since it uses Microsoft's Azure AI 
 2.  Run the installer. **Crucially, on the "Select Additional Language Data" screen, make sure to select the language pack that corresponds to your in-game language.** For English, this is `eng`. For Spanish, this is `spa`.
 3.  Note down the installation path (e.g., `C:\Program Files\Tesseract-OCR`).
 4.  **Download the latest MDSU installer** from the Releases section on the top-right, run it and follow the instructions.
-        Alternatively, a non-installer ZIP file is also available.
 5.  Run the program. **It must remain open while you play Medieval Dynasty for it to work!**
 6.  Set the location of **Tesseract's .exe file** from the path you noted down in **step 3**.
 
@@ -66,7 +65,7 @@ Setting up ReShade:
 7.  Open the ReShade overlay in-game and go to the **Settings** tab.
 8.  Scroll down to the "Screenshots" section.
 9.  Set the **Screenshot key** to your preference.
-10.  Set the **Screenshot path** to the `temp_storage` folder located inside the MDSU application directory (e.g., `C:\Program Files\MDSU\temp_storage`).
+10.  Set the **Screenshot path** to the `temp_storage` folder located inside the MDSU application data directory (usually C:\Users\<username>\AppData\Roaming\mdsu\temp_storage).
 11.  Set **Screenshot format** to **PNG**.
 12.  Check the box for "**Save before and after images**" (this is super important for the app to find the correct file).
 13.  Scroll down to the "Overlay & Styling" section.
@@ -77,6 +76,14 @@ Setting up MDSU:
 
 16. In MDSU, check the **"Use Reshade" checkbox**.
 17. Change the screenshot key to the key you chose in **step 9**.
+
+---
+
+## Uninstall
+
+1. Make sure that the program is closed before trying to uninstall.
+2. Uninstall as any other Windows program **(Start menu -> Add or Remove Programs, find "Medieval Dynasty Speak Up" in the list, click "Uninstall")**.
+**OPTIONAL:** If you want, also delete the folder "C:\Users\<username>\AppData\Roaming\mdsu\" to get rid of MDSU's data files if you don't mind losing your configuration options and voices.
 
 ---
 

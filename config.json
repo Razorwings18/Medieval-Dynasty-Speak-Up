@@ -1,6 +1,0 @@
-{
-    "language": "eng",
-    "tesseract_path": "D:/Program Files/Tesseract-OCR/tesseract.exe",
-    "use_reshade": false,
-    "reshade_screenshot_key": "scroll_lock"
-}

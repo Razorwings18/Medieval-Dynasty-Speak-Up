@@ -14,3 +14,7 @@ venv
 voices_*.json
 /*.code-workspace
 /log.txt
+data/
+/app.spec
+dist/
+build/

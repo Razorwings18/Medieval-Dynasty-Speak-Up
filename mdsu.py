@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 import pytesseract
 import string
-import os
+import os, sys
 from keyboard_emulator import KeyboardEmulator
 from utils import Util
 from file_ops import *
@@ -17,11 +17,17 @@ import asyncio
 class MDSU:
     def __init__(self, loop):
         # Load the config file
-        self.config_settings = load_from_json("config.json")
+        self.config_settings = load_from_json(os.path.join(tools.windows_appdata_path(), "config.json"))
         
         # Initialize variables
         self.debug_mode = False # Prints debug messages and saves detected images into self.save_folder for debug purposes
-        self.save_folder = "debug_screenshots"
+
+        if getattr(sys, 'frozen', False):
+            # This ensures that if you ever forget to set the debug_mode above to False before compiling, it won't affect anything
+            #   in the compiled version.
+            self.debug_mode = False
+
+        self.save_folder = os.path.join(tools.windows_appdata_path(), "debug_screenshots")
         if "language" in self.config_settings.keys():
             self.language = self.config_settings["language"] # Language; "eng" for English, "spa" for Spanish. This 3-letter designation
                                                              #     is the one used by Tesseract, so we'll use it too.
@@ -43,11 +49,11 @@ class MDSU:
 
         # Set the path to the Tesseract executable (modify this path based on your installation)
         pytesseract.pytesseract.tesseract_cmd = self.config_settings["tesseract_path"]
-        self.voice_params = load_from_json("voice_config_" + self.language + ".json")
+        self.voice_params = load_from_json(os.path.join(tools.windows_appdata_path(), "voice_config_" + self.language + ".json"))
         self.ocr_language = self.voice_params["ocr_lang"]
 
         # Load the sex info from the JSON file
-        self.sex_info = load_from_json("sex_info.json")
+        self.sex_info = load_from_json(os.path.join(tools.windows_appdata_path(), "sex_info.json"))
 
         # Initialize the reshade config
         tools.Log("\nReshade config. Use Reshade: " + str(self.config_settings["use_reshade"]) + ". Screenshot key: " + str(self.config_settings["reshade_screenshot_key"]))
@@ -60,7 +66,7 @@ class MDSU:
         self.keyboard_emulator = KeyboardEmulator(self, self.config_settings["reshade_screenshot_key"], self.loop)
 
         # Load the list of strings that should be ignored
-        self.dont_say_these_strings = load_strings_from_file("dont_say.cfg")
+        self.dont_say_these_strings = load_strings_from_file(os.path.join(tools.windows_appdata_path(), "dont_say.cfg"))
         tools.Log("\nIgnored strings: {}".format(self.dont_say_these_strings))
 
         # Delete any leftover screenshots in the temp folder

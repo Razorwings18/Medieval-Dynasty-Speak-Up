@@ -17,13 +17,15 @@ class Util:
         self.debug_mode = True # Outputs debug messages if True
         
         # Load the voice-character relationships from the JSON file
-        self.voice_character_file = "voices_" + language + ".json"
+        self.voice_character_file = os.path.join(tools.windows_appdata_path(), "voices_" + language + ".json")
         self.name_to_voice = load_from_json(self.voice_character_file) # Key: name of character, Value: [voice name, rate, pitch]
 
         # Get the pointer to the folder where temporary screenshots are stored
-        #script_folder = os.path.dirname(os.path.realpath(__file__))
-        script_folder = "."
-        self.temp_storage_folder = os.path.join(script_folder, "temp_storage")
+        self.temp_storage_folder = os.path.join(tools.windows_appdata_path(), "temp_storage")
+
+        # Create temp_storage_folder if it doesn't exist
+        if not os.path.exists(self.temp_storage_folder):
+            os.makedirs(self.temp_storage_folder)
 
     def empty_screenshot_folder(self):
         temp_storage_folder = self.temp_storage_folder
